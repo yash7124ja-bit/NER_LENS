@@ -215,7 +215,11 @@ def test_persisted_ordinary_district_officer_cannot_publish_in_replay_mode():
     factory = build_session_factory(Settings(database_url="sqlite+pysqlite:///:memory:"))
     Base.metadata.create_all(factory.kw["bind"])
     with factory() as session:
-        session.add(Jurisdiction(id="replay-guwahati", code="replay", name="Replay"))
+        session.add(
+            Jurisdiction(
+                id="replay_guwahati_silchar", code="replay_guwahati_silchar", name="Replay"
+            )
+        )
         session.add(Actor(id=actor_id, external_subject="ordinary", actor_type="user"))
         session.add(
             SessionRecord(
@@ -231,7 +235,7 @@ def test_persisted_ordinary_district_officer_cannot_publish_in_replay_mode():
                 id="ffffffff-ffff-4fff-8fff-ffffffffffff",
                 actor_id=actor_id,
                 role="district_officer",
-                jurisdiction_id="replay-guwahati",
+                jurisdiction_id="replay_guwahati_silchar",
             )
         )
         session.commit()
@@ -239,7 +243,7 @@ def test_persisted_ordinary_district_officer_cannot_publish_in_replay_mode():
         actor_id=actor_id,
         actor_type="user",
         roles=("district_officer",),
-        jurisdiction_ids=("replay-guwahati",),
+        jurisdiction_ids=("replay_guwahati_silchar",),
         mission_ids=(),
         session_id=session_id,
         token_issued_at=now,
@@ -250,7 +254,7 @@ def test_persisted_ordinary_district_officer_cannot_publish_in_replay_mode():
         actor,
         "publish_status",
         ResourceScope(
-            jurisdiction_id="replay-guwahati",
+            jurisdiction_id="replay_guwahati_silchar",
             status_authority_actor_id=actor_id,
         ),
         now=now,
