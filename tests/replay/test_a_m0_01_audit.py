@@ -38,6 +38,13 @@ def test_manifest_has_required_fields_and_sources():
     assert manifest["status"] == "blocked_p0"
     assert manifest["source_policy"] == "metadata_only_no_raw_private_or_unlicensed_payloads"
     assert manifest["sources"]
+    probe = manifest["real_route_probe"]
+    assert probe["status"] == "real_bounded_non_runtime_probe"
+    assert probe["queries_returned_http_200"] == 4
+    assert probe["approximate_endpoints"] is True
+    assert probe["nh6_waypoint_biased"] is True
+    assert probe["receipt_form"] == "aggregated_path_details_and_recorded_provenance"
+    assert probe["does_not_establish"]
 
     for source in manifest["sources"]:
         assert SOURCE_FIELDS <= source.keys(), source
@@ -89,6 +96,7 @@ def test_audit_checklist_covers_required_m0_inputs():
         "fallback",
         "Conservative default: **false**",
         "P0 BLOCKED",
+        "Bounded real probe evidence (Path B commit `26c6e39`)",
     ):
         assert required_fact in audit
 
@@ -104,6 +112,9 @@ def test_structural_completeness_does_not_grant_p0_readiness():
     # Missing facts remain blockers; the test must fail if evidence is silently
     # converted into a readiness pass.
     assert "P0 BLOCKED — do not start A-M1-01" in audit
-    assert "No dated PBF was imported" in audit
+    assert "Four queries returned HTTP 200 with a path" in audit
+    assert "exact project profiles" in audit
+    assert "aggregated/self-attested receipts" in audit
+    assert "waypoint bias for NH-6" in audit
     assert "A named status authority and evidence reviewer" in audit
     assert "A permitted positive-event and passability/ground-truth ledger path" in audit
