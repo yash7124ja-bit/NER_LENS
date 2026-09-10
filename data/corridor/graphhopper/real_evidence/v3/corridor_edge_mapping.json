@@ -1,0 +1,844 @@
+{
+  "method": "Each of the six audited NH-27 bands (fixture_graph.v1.json band_1..band_6, same endpoint coordinates as A-M0-01/route-manifest.yaml) was queried as its own two-point GraphHopper /route request, once per exact vehicle profile. This makes 'which real road did band N actually route over' a direct, verifiable per-leg fact rather than an inference from a single multi-point response. The threaded 7-point nh27_via_bands_<profile> query (all six bands in one request, same waypoints in order) is reported separately as the 'NH-27 candidate' run; its total distance is cross-checked against the sum of the six independent leg distances below as a consistency check.",
+  "bands": [
+    {
+      "band_id": "band_1_jalukbari_nagaon",
+      "description": "Guwahati/Jalukbari (26.1445,91.7362) -> Nagaon (26.3489,92.684)",
+      "by_profile": {
+        "light_goods": {
+          "query_id": "nh27_leg1_band1_jalukbari_nagaon_light_goods",
+          "distance_m": 114031.0,
+          "street_ref_distance_m_top": [
+            [
+              "NH27",
+              42699.38506688281
+            ],
+            [
+              "NH715A",
+              19659.447797178123
+            ],
+            [
+              "SH3",
+              35961.71990332809
+            ],
+            [
+              "SH47",
+              70.39068846800365
+            ],
+            [
+              "null",
+              15640.078109934848
+            ]
+          ],
+          "street_names_first_seen": [
+            "Barsapara Road",
+            "Lokhra-Lalganesh Road",
+            "Kahilipara Road",
+            "Zoo road",
+            "Radha Gobinda Baruah Road",
+            "Mahapurush Srimanta Sankardeva Path",
+            "Dispur Flyover"
+          ],
+          "hgv_distance_m": {
+            "missing": 114031.02156579187
+          },
+          "road_access_distance_m": {
+            "yes": 114031.02156579187
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        },
+        "rigid_truck": {
+          "query_id": "nh27_leg1_band1_jalukbari_nagaon_rigid_truck",
+          "distance_m": 114605.9,
+          "street_ref_distance_m_top": [
+            [
+              "NH27",
+              42699.385066882794
+            ],
+            [
+              "NH715A",
+              19659.447797178123
+            ],
+            [
+              "SH3",
+              35961.71990332809
+            ],
+            [
+              "SH47",
+              70.39068846800365
+            ],
+            [
+              "null",
+              16214.752021197062
+            ]
+          ],
+          "street_names_first_seen": [
+            "Lokhra-Lalganesh Road",
+            "Lal Ganesh Road",
+            "Kahilipara Road",
+            "Zoo road",
+            "Radha Gobinda Baruah Road",
+            "Mahapurush Srimanta Sankardeva Path",
+            "Dispur Flyover"
+          ],
+          "hgv_distance_m": {
+            "missing": 114605.69547705408
+          },
+          "road_access_distance_m": {
+            "yes": 114605.69547705408
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        },
+        "emergency": {
+          "query_id": "nh27_leg1_band1_jalukbari_nagaon_emergency",
+          "distance_m": 114605.9,
+          "street_ref_distance_m_top": [
+            [
+              "NH27",
+              42699.385066882794
+            ],
+            [
+              "NH715A",
+              19659.447797178123
+            ],
+            [
+              "SH3",
+              35961.71990332809
+            ],
+            [
+              "SH47",
+              70.39068846800365
+            ],
+            [
+              "null",
+              16214.752021197062
+            ]
+          ],
+          "street_names_first_seen": [
+            "Lokhra-Lalganesh Road",
+            "Lal Ganesh Road",
+            "Kahilipara Road",
+            "Zoo road",
+            "Radha Gobinda Baruah Road",
+            "Mahapurush Srimanta Sankardeva Path",
+            "Dispur Flyover"
+          ],
+          "hgv_distance_m": {
+            "missing": 114605.69547705408
+          },
+          "road_access_distance_m": {
+            "yes": 114605.69547705408
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        }
+      }
+    },
+    {
+      "band_id": "band_2_nagaon_doboka",
+      "description": "Nagaon (26.3489,92.684) -> Doboka (26.131,92.893)",
+      "by_profile": {
+        "light_goods": {
+          "query_id": "nh27_leg2_band2_nagaon_doboka_light_goods",
+          "distance_m": 40830.1,
+          "street_ref_distance_m_top": [
+            [
+              "NH27",
+              32527.35799524436
+            ],
+            [
+              "NH29",
+              2929.2789166306757
+            ],
+            [
+              "null",
+              5373.44592820334
+            ]
+          ],
+          "street_names_first_seen": [],
+          "hgv_distance_m": {
+            "missing": 40830.08284007838
+          },
+          "road_access_distance_m": {
+            "yes": 40830.08284007838
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        },
+        "rigid_truck": {
+          "query_id": "nh27_leg2_band2_nagaon_doboka_rigid_truck",
+          "distance_m": 40830.1,
+          "street_ref_distance_m_top": [
+            [
+              "NH27",
+              32527.35799524436
+            ],
+            [
+              "NH29",
+              2929.2789166306757
+            ],
+            [
+              "null",
+              5373.44592820334
+            ]
+          ],
+          "street_names_first_seen": [],
+          "hgv_distance_m": {
+            "missing": 40830.08284007838
+          },
+          "road_access_distance_m": {
+            "yes": 40830.08284007838
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        },
+        "emergency": {
+          "query_id": "nh27_leg2_band2_nagaon_doboka_emergency",
+          "distance_m": 40830.1,
+          "street_ref_distance_m_top": [
+            [
+              "NH27",
+              32527.35799524436
+            ],
+            [
+              "NH29",
+              2929.2789166306757
+            ],
+            [
+              "null",
+              5373.44592820334
+            ]
+          ],
+          "street_names_first_seen": [],
+          "hgv_distance_m": {
+            "missing": 40830.08284007838
+          },
+          "road_access_distance_m": {
+            "yes": 40830.08284007838
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        }
+      }
+    },
+    {
+      "band_id": "band_3_doboka_lanka_lumding",
+      "description": "Doboka (26.131,92.893) -> Lanka/Lumding (25.755,93.171)",
+      "by_profile": {
+        "light_goods": {
+          "query_id": "nh27_leg3_band3_doboka_lanka_lumding_light_goods",
+          "distance_m": 62195.0,
+          "street_ref_distance_m_top": [
+            [
+              "NH27",
+              52959.6086458829
+            ],
+            [
+              "NH29",
+              2925.824470525261
+            ],
+            [
+              "NH329",
+              843.9276403111508
+            ],
+            [
+              "null",
+              5465.50139560187
+            ]
+          ],
+          "street_names_first_seen": [],
+          "hgv_distance_m": {
+            "missing": 62194.862152321184
+          },
+          "road_access_distance_m": {
+            "yes": 62194.862152321184
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        },
+        "rigid_truck": {
+          "query_id": "nh27_leg3_band3_doboka_lanka_lumding_rigid_truck",
+          "distance_m": 62195.0,
+          "street_ref_distance_m_top": [
+            [
+              "NH27",
+              52959.6086458829
+            ],
+            [
+              "NH29",
+              2925.824470525261
+            ],
+            [
+              "NH329",
+              843.9276403111508
+            ],
+            [
+              "null",
+              5465.50139560187
+            ]
+          ],
+          "street_names_first_seen": [],
+          "hgv_distance_m": {
+            "missing": 62194.862152321184
+          },
+          "road_access_distance_m": {
+            "yes": 62194.862152321184
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        },
+        "emergency": {
+          "query_id": "nh27_leg3_band3_doboka_lanka_lumding_emergency",
+          "distance_m": 62195.0,
+          "street_ref_distance_m_top": [
+            [
+              "NH27",
+              52959.6086458829
+            ],
+            [
+              "NH29",
+              2925.824470525261
+            ],
+            [
+              "NH329",
+              843.9276403111508
+            ],
+            [
+              "null",
+              5465.50139560187
+            ]
+          ],
+          "street_names_first_seen": [],
+          "hgv_distance_m": {
+            "missing": 62194.862152321184
+          },
+          "road_access_distance_m": {
+            "yes": 62194.862152321184
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        }
+      }
+    },
+    {
+      "band_id": "band_4_lumding_maibang",
+      "description": "Lumding (25.755,93.171) -> Maibang (25.426,93.293)",
+      "by_profile": {
+        "light_goods": {
+          "query_id": "nh27_leg4_band4_lumding_maibang_light_goods",
+          "distance_m": 98379.6,
+          "street_ref_distance_m_top": [
+            [
+              "NH27",
+              63254.435164850234
+            ],
+            [
+              "Nc-M-1",
+              33027.806494792065
+            ],
+            [
+              "null",
+              2097.2417188782574
+            ]
+          ],
+          "street_names_first_seen": [],
+          "hgv_distance_m": {
+            "missing": 98379.48337852056
+          },
+          "road_access_distance_m": {
+            "yes": 98379.48337852056
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        },
+        "rigid_truck": {
+          "query_id": "nh27_leg4_band4_lumding_maibang_rigid_truck",
+          "distance_m": 98379.6,
+          "street_ref_distance_m_top": [
+            [
+              "NH27",
+              63254.435164850234
+            ],
+            [
+              "Nc-M-1",
+              33027.806494792065
+            ],
+            [
+              "null",
+              2097.2417188782574
+            ]
+          ],
+          "street_names_first_seen": [],
+          "hgv_distance_m": {
+            "missing": 98379.48337852056
+          },
+          "road_access_distance_m": {
+            "yes": 98379.48337852056
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        },
+        "emergency": {
+          "query_id": "nh27_leg4_band4_lumding_maibang_emergency",
+          "distance_m": 98379.6,
+          "street_ref_distance_m_top": [
+            [
+              "NH27",
+              63254.435164850234
+            ],
+            [
+              "Nc-M-1",
+              33027.806494792065
+            ],
+            [
+              "null",
+              2097.2417188782574
+            ]
+          ],
+          "street_names_first_seen": [],
+          "hgv_distance_m": {
+            "missing": 98379.48337852056
+          },
+          "road_access_distance_m": {
+            "yes": 98379.48337852056
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        }
+      }
+    },
+    {
+      "band_id": "band_5_maibang_harangajao_balachera_hill",
+      "description": "Maibang (25.426,93.293) -> Harangajao/Balachera hill (24.943,92.975)",
+      "by_profile": {
+        "light_goods": {
+          "query_id": "nh27_leg5_band5_maibang_harangajao_balachera_light_goods",
+          "distance_m": 145600.3,
+          "street_ref_distance_m_top": [
+            [
+              "CA-M-001",
+              9257.713783707644
+            ],
+            [
+              "NH137G",
+              11645.979508045639
+            ],
+            [
+              "NH27",
+              26420.21211481133
+            ],
+            [
+              "Nc-M-1",
+              33027.806494792145
+            ],
+            [
+              "SH37",
+              2695.5217410741825
+            ],
+            [
+              "SH37, SH-022",
+              25310.40867205282
+            ]
+          ],
+          "street_names_first_seen": [
+            "হরিন্গর Road"
+          ],
+          "hgv_distance_m": {
+            "missing": 145599.83297727487
+          },
+          "road_access_distance_m": {
+            "yes": 145599.83297727487
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        },
+        "rigid_truck": {
+          "query_id": "nh27_leg5_band5_maibang_harangajao_balachera_rigid_truck",
+          "distance_m": 168772.6,
+          "street_ref_distance_m_top": [
+            [
+              "NH-27",
+              1065.751268816959
+            ],
+            [
+              "NH27",
+              114071.55608361561
+            ],
+            [
+              "Nc-M-1",
+              33027.806494792145
+            ],
+            [
+              "SH37, SH-022",
+              9908.924691387627
+            ],
+            [
+              "null",
+              10698.772057684015
+            ]
+          ],
+          "street_names_first_seen": [],
+          "hgv_distance_m": {
+            "missing": 168772.81059629636
+          },
+          "road_access_distance_m": {
+            "yes": 168772.81059629636
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        },
+        "emergency": {
+          "query_id": "nh27_leg5_band5_maibang_harangajao_balachera_emergency",
+          "distance_m": 168772.6,
+          "street_ref_distance_m_top": [
+            [
+              "NH-27",
+              1065.751268816959
+            ],
+            [
+              "NH27",
+              114071.55608361561
+            ],
+            [
+              "Nc-M-1",
+              33027.806494792145
+            ],
+            [
+              "SH37, SH-022",
+              9908.924691387627
+            ],
+            [
+              "null",
+              10698.772057684015
+            ]
+          ],
+          "street_names_first_seen": [],
+          "hgv_distance_m": {
+            "missing": 168772.81059629636
+          },
+          "road_access_distance_m": {
+            "yes": 168772.81059629636
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        }
+      }
+    },
+    {
+      "band_id": "band_6_balachera_silchar",
+      "description": "Harangajao/Balachera (24.943,92.975) -> Silchar (24.8333,92.7789)",
+      "by_profile": {
+        "light_goods": {
+          "query_id": "nh27_leg6_band6_balachera_silchar_light_goods",
+          "distance_m": 27223.8,
+          "street_ref_distance_m_top": [
+            [
+              "NH27",
+              3559.3162080761176
+            ],
+            [
+              "NH37",
+              6389.806434652684
+            ],
+            [
+              "SH37, SH-022",
+              13635.2662908186
+            ],
+            [
+              "null",
+              3639.412682527963
+            ]
+          ],
+          "street_names_first_seen": [
+            "NH53",
+            "Tarapur"
+          ],
+          "hgv_distance_m": {
+            "missing": 27223.801616075365
+          },
+          "road_access_distance_m": {
+            "yes": 27223.801616075365
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        },
+        "rigid_truck": {
+          "query_id": "nh27_leg6_band6_balachera_silchar_rigid_truck",
+          "distance_m": 27223.8,
+          "street_ref_distance_m_top": [
+            [
+              "NH27",
+              3559.3162080761176
+            ],
+            [
+              "NH37",
+              6389.806434652684
+            ],
+            [
+              "SH37, SH-022",
+              13635.2662908186
+            ],
+            [
+              "null",
+              3639.412682527963
+            ]
+          ],
+          "street_names_first_seen": [
+            "NH53",
+            "Tarapur"
+          ],
+          "hgv_distance_m": {
+            "missing": 27223.801616075365
+          },
+          "road_access_distance_m": {
+            "yes": 27223.801616075365
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        },
+        "emergency": {
+          "query_id": "nh27_leg6_band6_balachera_silchar_emergency",
+          "distance_m": 27223.8,
+          "street_ref_distance_m_top": [
+            [
+              "NH27",
+              3559.3162080761176
+            ],
+            [
+              "NH37",
+              6389.806434652684
+            ],
+            [
+              "SH37, SH-022",
+              13635.2662908186
+            ],
+            [
+              "null",
+              3639.412682527963
+            ]
+          ],
+          "street_names_first_seen": [
+            "NH53",
+            "Tarapur"
+          ],
+          "hgv_distance_m": {
+            "missing": 27223.801616075365
+          },
+          "road_access_distance_m": {
+            "yes": 27223.801616075365
+          },
+          "max_height_distinct_values": [
+            "None"
+          ],
+          "max_weight_distinct_values": [
+            "None"
+          ]
+        }
+      }
+    }
+  ],
+  "consistency_check": {
+    "light_goods": {
+      "sum_of_six_leg_distances_m": 488259.8,
+      "threaded_via_bands_query_distance_m": 488259.8,
+      "difference_m": 0.0,
+      "note": "GraphHopper's classic /route API computes a multi-point request as the concatenation of independently-shortest-for-that-profile paths between each consecutive point pair (no reordering/optimization), so this difference should be at or near 0. A nonzero difference would mean the threaded query and the independent leg queries disagree, which would need investigation before trusting either as evidence."
+    },
+    "rigid_truck": {
+      "sum_of_six_leg_distances_m": 512007.0,
+      "threaded_via_bands_query_distance_m": 512007.0,
+      "difference_m": 0.0,
+      "note": "GraphHopper's classic /route API computes a multi-point request as the concatenation of independently-shortest-for-that-profile paths between each consecutive point pair (no reordering/optimization), so this difference should be at or near 0. A nonzero difference would mean the threaded query and the independent leg queries disagree, which would need investigation before trusting either as evidence."
+    },
+    "emergency": {
+      "sum_of_six_leg_distances_m": 512007.0,
+      "threaded_via_bands_query_distance_m": 512007.0,
+      "difference_m": 0.0,
+      "note": "GraphHopper's classic /route API computes a multi-point request as the concatenation of independently-shortest-for-that-profile paths between each consecutive point pair (no reordering/optimization), so this difference should be at or near 0. A nonzero difference would mean the threaded query and the independent leg queries disagree, which would need investigation before trusting either as evidence."
+    }
+  },
+  "divergence_findings": [
+    {
+      "band_id": "band_5_maibang_harangajao_balachera_hill",
+      "observation": "light_goods routes this leg in 145600m; rigid_truck and emergency both route it in 168773m (168773m for emergency, effectively identical to rigid_truck). This is the only band of the six where the three profiles do not follow the same physical path.",
+      "root_cause_check": "road_access, hgv, max_height, and max_weight path-detail coverage on this leg is IDENTICAL across all three profiles (road_access=yes throughout, hgv=missing throughout, max_height/max_weight=None/unset throughout for every profile -- see by_profile entries above). There is no access/height/weight/hgv restriction tag on the shorter path that would explain rigid_truck or emergency being unable to use it.",
+      "conclusion": "This divergence is a ROUTING-PREFERENCE effect of the custom models' distance_influence values (light_goods=90, strongly prefers the shortest path by raw distance; rigid_truck=1 and emergency=30, both weight priority/speed far more than raw distance), not a hard-constraint exclusion. It is disclosed here because it is a real, measured divergence between the intended single NH-27 alignment and each profile's actual computed path, and because it shows GraphHopper choosing a materially different real road for otherwise-identical vehicle legality inputs. It is not evidence of an access/legality restriction; it is evidence that this hill band offers more than one physically routable option in this OSM extract, and profile distance-preference (not vehicle legality) picks between them here."
+    }
+  ],
+  "overall_route_comparison": {
+    "light_goods": {
+      "control_direct_distance_m": 298611.8,
+      "control_direct_nh27_ref_distance_m": 6298.7,
+      "control_direct_nh27_ref_share": 0.0211,
+      "control_direct_top_refs": [
+        [
+          "NH27",
+          6298.658184859376
+        ],
+        [
+          "NH37",
+          27.33914554846706
+        ],
+        [
+          "NH6",
+          199823.30643696975
+        ],
+        [
+          "SH38, SH-023",
+          28122.25054806046
+        ],
+        [
+          "null",
+          64340.252634357275
+        ]
+      ],
+      "via_bands_distance_m": 488259.8,
+      "via_bands_nh27_ref_distance_m": 221420.3,
+      "via_bands_nh27_ref_share": 0.4535,
+      "nh6_alternative_distance_m": 307312.7,
+      "interpretation": "The unconstrained direct (control) query is dominated by NH6/NH37/SH38 refs with only a small NH27 fraction -- it is GraphHopper's own shortest/fastest path between the two endpoints, which is NOT the audited NH-27 corridor and must not be cited as NH-27 evidence. Routing explicitly through the six audited band waypoints (via_bands) raises the NH27-ref share substantially, but the resulting path is still a REAL mix of NH27 plus several other named/ref'd roads (SH37, Nc-M-1, NH137G, CA-M-001, NH715A, SH3, NH29, NH329 and unnamed local roads), not a single continuous NH27 way. This is reported as measured fact, not smoothed into a 'the route is NH27' claim."
+    },
+    "rigid_truck": {
+      "control_direct_distance_m": 302453.6,
+      "control_direct_nh27_ref_distance_m": 6298.7,
+      "control_direct_nh27_ref_share": 0.0208,
+      "control_direct_top_refs": [
+        [
+          "NH27",
+          6298.6581848593705
+        ],
+        [
+          "NH37",
+          338.31060484657064
+        ],
+        [
+          "NH6",
+          207178.086964369
+        ],
+        [
+          "SH38",
+          31.048613862483762
+        ],
+        [
+          "SH38, SH-023",
+          28325.30010550568
+        ],
+        [
+          "null",
+          60281.75123304934
+        ]
+      ],
+      "via_bands_distance_m": 512007.0,
+      "via_bands_nh27_ref_distance_m": 310137.4,
+      "via_bands_nh27_ref_share": 0.6057,
+      "nh6_alternative_distance_m": 309412.0,
+      "interpretation": "The unconstrained direct (control) query is dominated by NH6/NH37/SH38 refs with only a small NH27 fraction -- it is GraphHopper's own shortest/fastest path between the two endpoints, which is NOT the audited NH-27 corridor and must not be cited as NH-27 evidence. Routing explicitly through the six audited band waypoints (via_bands) raises the NH27-ref share substantially, but the resulting path is still a REAL mix of NH27 plus several other named/ref'd roads (SH37, Nc-M-1, NH137G, CA-M-001, NH715A, SH3, NH29, NH329 and unnamed local roads), not a single continuous NH27 way. This is reported as measured fact, not smoothed into a 'the route is NH27' claim."
+    },
+    "emergency": {
+      "control_direct_distance_m": 299827.7,
+      "control_direct_nh27_ref_distance_m": 6298.7,
+      "control_direct_nh27_ref_share": 0.021,
+      "control_direct_top_refs": [
+        [
+          "NH27",
+          6298.6581848593705
+        ],
+        [
+          "NH37",
+          338.31060484657064
+        ],
+        [
+          "NH6",
+          200211.44745244665
+        ],
+        [
+          "SH38",
+          31.048613862483762
+        ],
+        [
+          "SH38, SH-023",
+          28325.30010550568
+        ],
+        [
+          "null",
+          64622.559442561054
+        ]
+      ],
+      "via_bands_distance_m": 512007.0,
+      "via_bands_nh27_ref_distance_m": 310137.4,
+      "via_bands_nh27_ref_share": 0.6057,
+      "nh6_alternative_distance_m": 308571.9,
+      "interpretation": "The unconstrained direct (control) query is dominated by NH6/NH37/SH38 refs with only a small NH27 fraction -- it is GraphHopper's own shortest/fastest path between the two endpoints, which is NOT the audited NH-27 corridor and must not be cited as NH-27 evidence. Routing explicitly through the six audited band waypoints (via_bands) raises the NH27-ref share substantially, but the resulting path is still a REAL mix of NH27 plus several other named/ref'd roads (SH37, Nc-M-1, NH137G, CA-M-001, NH715A, SH3, NH29, NH329 and unnamed local roads), not a single continuous NH27 way. This is reported as measured fact, not smoothed into a 'the route is NH27' claim."
+    }
+  }
+}

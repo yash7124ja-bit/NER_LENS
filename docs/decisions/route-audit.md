@@ -1,13 +1,20 @@
 # B-M0-01 — Route and GraphHopper feasibility audit
 
-**Status:** Path B second corrective audit (post second Terra P0 review).
+**Status:** Path B third corrective audit (post third Terra routing verdict).
 Overall Terra P0 remains **BLOCKED** for reasons entirely outside Path B's
-ownership (see section 9). The **routing sub-gate**, which was separately
-BLOCKED for using generic car/truck profiles and carrying a timestamp
-inconsistency, is corrected in this revision: the exact three project
-vehicle profiles were run against a real graph for both route hypotheses,
-with independently-captured timestamps and checksummed receipts. This is
-not yet a sign-off for `B-M1-01`/`B-M1-02`.
+ownership (see section 9). The **routing sub-gate** was separately BLOCKED
+by two P1 findings: (1) `rigid_truck.json` converted hard-exclusion
+conditions (`hgv==DELIVERY`/`DESTINATION`, `road_access==PRIVATE`) into a
+0.1x speed penalty instead of an exclusion, and allowed `max_weight_except`
+to bypass an unauthorized weight exception; (2) the only "NH-27" evidence
+was a single unconstrained direct query, not distinguished from generic
+Guwahati–Silchar point connectivity. Both are corrected in this revision
+(section 4a, v3): `rigid_truck.json` now hard-excludes all three conditions
+and drops the `max_weight_except` bypass (extended to `light_goods`/
+`emergency` for consistency), and the NH-27 hypothesis is now evidenced by
+three layers — an explicitly-labelled control, a threaded query through all
+six audited band waypoints, and six independent per-band leg queries with a
+corridor-edge mapping. This is not yet a sign-off for `B-M1-01`/`B-M1-02`.
 **Owner:** Path B (Claude Sonnet 5)
 **Branch / commit:** `path-b/m0-route-audit`, rebased onto `main` (Sol's
 official SIH-26002 snapshot commit)
@@ -169,22 +176,33 @@ high`) is fully routable in its permitted direction. 12 more tests were added
 in this corrective audit for the categories listed in section 3; the full
 suite is 28 tests, all passing.
 
-## 4a. Real OSM extract and GraphHopper evidence (second corrective audit — v2, current)
+## 4a. Real OSM extract and GraphHopper evidence (third corrective audit — v3, current)
 
-**v1 (`data/corridor/graphhopper/real_evidence/v1_superseded/`) is
-superseded.** Terra's second review found two defects: a timestamp
-inconsistency (an HTTP proxy `Date` header was recorded as if it were the
-retrieval time) and the use of generic `car`/`truck` example profiles
-instead of the three exact project profiles. Both are corrected below; see
-`v1_superseded/SUPERSEDED.md` for the full explanation. **v2
-(`data/corridor/graphhopper/real_evidence/v2/`) is the current,
+**v1 and v2 (`data/corridor/graphhopper/real_evidence/{v1,v2}_superseded/`)
+are superseded.** v1→v2 fixed a timestamp inconsistency and replaced
+generic `car`/`truck` profiles with the three exact project profiles.
+Terra's third (routing-specific) verdict found v2 still BLOCKED on two P1
+grounds:
+
+1. **`rigid_truck.json` converted three hard-exclusion conditions into a
+   0.1x speed penalty**, not an exclusion (`road_access==PRIVATE ||
+   hgv==DELIVERY || hgv==DESTINATION` → `multiply_by: "0.1"`), and allowed
+   `max_weight_except` to bypass a below-limit `max_weight` restriction with
+   no authorization input to justify it.
+2. **The only "NH-27" evidence was a single unconstrained direct query**
+   (origin→destination, no via-points) — GraphHopper's own shortest path,
+   not distinguished from generic Guwahati–Silchar point connectivity.
+
+Both are corrected in v3 below; see `v2_superseded/SUPERSEDED.md` for the
+full defect writeup. **v3
+(`data/corridor/graphhopper/real_evidence/v3/`) is the current,
 authoritative real-evidence layer.**
 
 ### Boundary statement
 
 This is real, one-time evidence gathering performed in a bounded, non-
 runtime scratch sandbox outside this repository and outside any Path
-A/B/Sol worktree (`D:/SIH-2026/.m0-graph-sandbox2/`, deleted after evidence
+A/B/Sol worktree (`D:/SIH-2026/.m0-graph-sandbox3/`, deleted after evidence
 extraction). It is not a running service, not the backend routing adapter,
 and no route in it is operationally verified — GraphHopper returning
 HTTP 200 means the graph and encoded vehicle constraints permit a path; it
@@ -192,130 +210,154 @@ is not an authorized operational status and not a `RouteVerificationPolicy`
 outcome. The tests in `tests/path_b/routing/test_real_evidence_receipts.py`
 validate the **committed receipt files**, not a live server.
 
-### Timestamp methodology (correcting the v1 defect)
+### Fix 1 — rigid-truck hard-exclusion correction
 
-v1 recorded an HTTP response `Date` header (`04:36:50Z`) as the retrieval
-time, which conflicted with a separately-worded "completed by 04:08 local"
-note. Root cause: Geofabrik serves the PBF through a caching proxy; on a
-cache hit, the `Date` header reflects when the cached response was
-generated, not when this session retrieved it — proven by an `Age: 17387`
-header (≈4.8 hours) on the repeat request in v2. v2 uses this session's own
-shell clock (`date -u`), captured immediately before and after every
-network call, as the sole authoritative timestamp source; HTTP headers are
-recorded for transparency only and explicitly labelled non-authoritative.
-See `real_extract_provenance.yaml`'s `TIMESTAMP METHODOLOGY` header comment
-and `osm_extract.retrieval_timestamps_utc`/`http_response_headers_informational_only`.
+`rigid_truck.json`'s `priority` rules now hard-exclude (`multiply_by: "0"`)
+`hgv == DELIVERY`, `hgv == DESTINATION`, and `road_access == PRIVATE`,
+matching the existing hard-exclusion treatment of `hgv == NO`. The
+`max_weight_except` carve-out is removed entirely: any `max_weight` below
+the profile's own limit (16t for `rigid_truck`) now excludes the segment
+**unconditionally**, because no authorization-backed applicability input
+exists in M0 to decide whether a given truck/mission qualifies for an
+except-tag grant. The same `max_weight_except` fix was extended, as a
+consistency measure, to `light_goods.json` (3.5t) and `emergency.json`
+(7.5t) — the same no-authorization-input rationale applies to all three
+profiles even though only `rigid_truck` uses the `hgv` encoded value.
+No delivery/destination/private-access/government/emergency exemption is
+invented anywhere; `test_no_invented_delivery_destination_private_government_or_emergency_exemption`
+enforces this for `emergency.json`/`light_goods.json`, and
+`test_rigid_truck_restrictions_are_never_a_small_penalty` is a direct
+regression test for the exact v2 defect (no restriction condition may use
+a fractional `multiply_by`).
 
-### What was actually done
+**Effect on this dataset:** all 27 v3 queries still returned HTTP 200 both
+before and after the fix — `road_access` is uniformly `"yes"` and `hgv` is
+uniformly `"missing"` on every queried path in this extract (section 3's
+absent-tag finding, confirmed again), so no DELIVERY/DESTINATION/PRIVATE
+tag or sub-16t `max_weight` tag was actually exercised by this run. The fix
+is a conservative-correctness change for data this run did not happen to
+exhibit, not a change that altered any route reported here — this is
+stated honestly rather than implied to be validated end-to-end.
 
-1. Re-downloaded the same dated extract, `north-eastern-zone-260909.osm.pbf`
-   (109,305,518 bytes; OSM data as of `2026-09-09T20:21:20Z`; ODbL). Byte
-   size, MD5 (`eee3d24f...79273`), and SHA-256
-   (`9250938d...ce068a9`) are identical to v1, confirming no upstream
-   change. **Retained outside git** at
-   `D:\SIH-2026\NER_LENS_ARTIFACTS\m0\north-eastern-zone-260909.osm.pbf`;
-   hash re-verified after the route run (identical).
-2. Re-downloaded the same official GraphHopper 11.0 release jar
-   (SHA-256 `b59c024a...f613def`, identical to v1).
-3. Authored three **project-specific** custom models
-   (`light_goods.json`, `rigid_truck.json`, `emergency.json`) using the
-   exact numeric limits from `data/corridor/graphhopper/vehicle_profiles.yaml`
-   (3.5t/2.5m, 16.0t/3.8m, 7.5t/3.0m). `rigid_truck.json` adapts
-   GraphHopper's official `truck.json` example with this project's own
-   thresholds substituted for its hard-coded 18t/4m. `emergency.json`
-   grants **no invented legal exemption**: it enforces `road_access`,
-   `max_height`, and `max_weight` identically to `light_goods`, because this
-   GraphHopper run has no encoded value representing a time-window/convoy
-   control — the only kind of exemption `vehicle_profiles.yaml` documents as
-   possibly applicable to emergency vehicles.
-4. Ran GraphHopper 11.0 (official `eclipse-temurin:21-jre-jammy` container)
-   with all three profiles under CH preparation (`rigid_truck` is
-   edge-based, due to `turn_costs`, and took ~80s to prepare — noticeably
-   longer than the two node-based profiles). `GET /info` confirmed
-   `data_date: "2026-09-09T20:21:20Z"` and all three profile names present.
-5. Queried **both route hypotheses × all three profiles** (6 combinations)
-   with `instructions=true` and `details` for `road_environment`,
-   `road_access`, `road_class`, `max_height`, `max_weight`, `hgv`. `route_nh27_primary`
-   is a direct origin→destination query (no via-points). `route_nh6_alternative`
-   is **explicitly waypoint-biased** through Shillong (`25.5788,91.8933`)
-   and Jowai (`25.4340,92.1935`) — GraphHopper has no "follow this named
-   highway" query mode.
+### Fix 2 — NH-27 corridor-edge mapping (distinguishing the candidate from generic connectivity)
 
-### Real findings
+The NH-27 hypothesis is now evidenced three ways, per profile:
 
-| Query | Distance | Time | `road_environment` | `hgv` | `max_height`/`max_weight` | Named "NH6"? |
-|---|---:|---:|---|---|---|---|
-| NH-27, light_goods | 298.6 km | 4h25m | 39 road/37 bridge/1 tunnel | missing | unset | no |
-| NH-27, rigid_truck | 302.5 km | 4h53m | 40 road/38 bridge/1 tunnel | missing | unset | no |
-| NH-27, emergency | 299.8 km | 4h24m | 40 road/38 bridge/1 tunnel | missing | unset | no |
-| NH-6, light_goods | 307.3 km | 4h38m | 41 road/36 bridge/1 tunnel/1 ford | missing | unset | **yes** |
-| NH-6, rigid_truck | 309.4 km | 5h07m | 42 road/37 bridge/1 tunnel/1 ford | missing | unset | **yes** |
-| NH-6, emergency | 308.6 km | 4h36m | 42 road/37 bridge/1 tunnel/1 ford | missing | unset | **yes** |
+1. **`nh27_control_direct`** — the original unconstrained two-point query,
+   retained and explicitly relabelled a **control**, never presented as
+   NH-27 continuity evidence.
+2. **`nh27_via_bands`** — one threaded query through all six audited band
+   endpoint waypoints, in the documented NHAI/NHIDCL/Parliamentary-record
+   direction (Guwahati → Nagaon → Doboka → Lanka/Lumding → Maibang →
+   Harangajao/Balachera → Silchar). This is **the NH-27 candidate** run.
+3. **Six independent per-band leg queries** (`nh27_leg1..leg6`), one per
+   audited band, each a direct two-point query between that band's own
+   endpoints — giving a verifiable per-band road-ref mapping instead of an
+   inference from a single multi-point response. The sum of the six leg
+   distances matches the threaded `nh27_via_bands` distance exactly (0m
+   difference, every profile) — a consistency check
+   (`test_leg_distance_sum_matches_threaded_via_bands_query`) that the two
+   evidence layers agree.
 
-**All three exact project profiles returned real HTTP 200 routes for both
-route hypotheses.** `hgv` and `max_height`/`max_weight` remain measured as
-missing/unset for the entire returned path on every single query — the
-same finding as v1, now confirmed with the project's own exact profiles
-rather than generic proxies. No `road_class=CONSTRUCTION` segment and no
-routing warnings/errors were encountered on any of the six queries.
+**`street_ref` path details were requested for the first time in v3**
+(v2 only requested `road_environment`/`road_access`/`road_class`/
+`max_height`/`max_weight`/`hgv`), exposing OSM `ref` tags directly:
 
-**Road-name evidence, asymmetric between the two candidates (Terra's
-explicit ask):** none of the three NH-27 queries' `instructions[].street_name`
-values matched "NH27"/"NH-27"/"National Highway 27" — the 8 unique named
-streets returned are all local Guwahati-area roads (e.g. "Zoo Road",
-"Kahilipara Road"). This is not strong evidence *against* NH-27 identity:
-Indian national-highway ways very often carry only an OSM `ref` tag (e.g.
-`ref=NH27`) without a `name` tag, and GraphHopper's `street_name` reflects
-`name`, not `ref`; this API surface does not expose `ref`. By contrast, the
-literal string **"NH6" appears as a `street_name`** in all three NH-6
-queries' instructions — direct (though single-segment) OSM-tag evidence
-that the waypoint-biased path traverses at least one way explicitly named
-"NH6", which is stronger direct naming evidence than NH-27 currently has
-from this API surface, precisely because NH-6's route was waypoint-biased
-through towns close to that segment. Neither finding confirms full
-end-to-end continuity along either named highway; both routes' real
-identity rests on the desk audit's NHAI/NHIDCL/Parliamentary citations plus
-this endpoint/via-point selection, not on an automated ref/name match for
-every edge.
+| Query | NH27-ref share of distance | Dominant refs |
+|---|---:|---|
+| `nh27_control_direct` (all profiles) | ~2.1% | **NH6** (~66-68%), NH27 (~2%), SH38/SH-023, NH37, unnamed |
+| `nh27_via_bands`, light_goods | 45.4% | NH27, Nc-M-1, SH37/SH-022, NH137G, CA-M-001, NH715A, SH3, NH29, NH329 |
+| `nh27_via_bands`, rigid_truck/emergency | 60.6% | NH27 (dominant), Nc-M-1, SH37/SH-022, and the same secondary refs |
 
-### Committed receipts (`data/corridor/graphhopper/real_evidence/v2/`)
+This confirms, with real measured data, exactly what Terra's verdict named:
+the unconstrained direct query is dominated by NH6/NH37/SH38 refs, not
+NH27, and must never be cited as NH-27 evidence. Forcing the route through
+the six audited bands raises the NH27 share substantially (to a plurality/
+majority), but the result is still a **real mix** of NH27 plus several
+other named/ref'd roads and unreferenced local roads — not a single
+continuous NH27 way. This is reported as measured fact
+(`test_no_route_is_fabricated_as_pure_nh27_when_it_is_a_real_mix` asserts
+the share is a genuine fraction strictly between 0 and 1, never smoothed to
+0% or 100%). No observed ref was renamed to match project terminology; OSM
+way IDs were sought but are **not obtainable** through GraphHopper's public
+`/route`/`/info` API surface in this version (its path details expose
+OSM-tag-derived `street_name`/`street_ref`, and internal edge/node IDs
+meaningful only inside its own graph) — this limitation is disclosed rather
+than worked around.
+
+**One real, disclosed divergence:** on `band_5_maibang_harangajao_balachera_hill`,
+`light_goods` takes a materially shorter path (145.6 km) than `rigid_truck`/
+`emergency` (168.8 km each, identical to each other) between the same two
+endpoints. `road_access`, `hgv`, `max_height`, and `max_weight` path-detail
+coverage is identical (uniformly `yes`/`missing`/unset) across all three
+profiles on this leg, so no legality restriction explains it. The cause is
+each custom model's `distance_influence` value (`light_goods`=90, strongly
+prefers shortest raw distance; `rigid_truck`=1, `emergency`=30, both weight
+priority/speed over raw distance far more) — a routing-preference effect,
+not a hard-constraint exclusion. Full detail in
+`real_evidence/v3/corridor_edge_mapping.json` → `divergence_findings`.
+
+### Real findings (unchanged from v2 except where noted)
+
+`hgv` remains missing and `max_height`/`max_weight` remain unset along
+every returned path for all 27 v3 queries — the same finding as v1/v2, now
+reconfirmed a third time with `street_ref` detail added. `road_access` is
+uniformly `"yes"` on every queried path in this run; no `PRIVATE`/
+`DELIVERY`/`DESTINATION`-tagged way was encountered. No `road_class=
+CONSTRUCTION` segment and no routing warnings/errors were encountered on
+any of the 27 queries. The NH-6 alternative's real `"NH6"` `street_name`
+match (unchanged method, single-segment evidence, not full continuity) is
+carried forward unchanged from v2.
+
+### Committed receipts (`data/corridor/graphhopper/real_evidence/v3/`)
 
 | File | Contents |
 |---|---|
-| `real_extract_provenance.yaml` | Full provenance: extract/jar/retention hashes, timestamp methodology, per-profile custom-model hashes, per-query request parameters and via-points, real findings, honest limitations |
+| `real_extract_provenance.yaml` | Full provenance: extract/jar/retention hashes, timestamp methodology, per-profile custom-model hashes and v2→v3 change notes, route definitions and roles, real findings, honest limitations |
 | `raw_info.json` | Raw `GET /info` response |
-| `raw_responses/*.json` (6 files) | Raw, unmodified `GET /route` responses, one per route×profile combination, including full geometry and turn-by-turn instructions |
-| `response_index.json` | Maps each query to its exact request parameters, response file, and SHA-256 |
-| `result_summary.json` | Per-query distance/time/street-names/path-details aggregation |
-| `graphhopper-config.yml`, `light_goods.json`, `rigid_truck.json`, `emergency.json` | Exact config and exact project-specific custom models used |
+| `raw_responses/*.json` (27 files) | Raw, unmodified `GET /route` responses: 3 profiles × (1 control + 1 via-bands + 6 legs + 1 NH-6) |
+| `response_index.json` | Maps each of the 27 queries to its response file and SHA-256 |
+| `result_summary.json` | Per-query distance/time/street-ref-by-distance/street-names/path-details aggregation |
+| `corridor_edge_mapping.json` | Per-band, per-profile road-ref mapping; leg-sum-vs-threaded-query consistency check; band-5 divergence finding; NH27-share-of-distance comparison for control vs. via-bands |
+| `graphhopper-config.yml`, `light_goods.json`, `rigid_truck.json`, `emergency.json` | Exact config and exact (corrected) project-specific custom models used |
 | `query_timestamps.log` | Independently captured before/after shell-clock timestamp for every query |
 | `REPRODUCE.md` | Exact commands to reproduce the run |
 
-Every raw response's SHA-256 is recorded in both `real_extract_provenance.yaml`
-and `response_index.json`; `result_summary.json` and `response_index.json`
-are themselves hashed in `real_extract_provenance.yaml`
-(`result_summary_sha256`, `response_index_sha256`). All of this is enforced
-by `tests/path_b/routing/test_real_evidence_receipts.py`.
+Every raw response's SHA-256 is recorded in `response_index.json`;
+`result_summary.json`, `response_index.json`, and `corridor_edge_mapping.json`
+are themselves hashed in `real_extract_provenance.yaml`. All of this is
+enforced by `tests/path_b/routing/test_real_evidence_receipts.py` (51 tests).
 
-### Honest limitations of the real run (v2)
+### Honest limitations of the real run (v3)
 
-- Corridor identity is established by origin/destination/via-point
-  selection plus desk-audit citations, not by an automated OSM ref/name
-  match for every edge — see the road-name evidence above.
-- `route_nh6_alternative` remains explicitly waypoint-biased; GraphHopper
-  computed its own optimal sub-path between each consecutive waypoint pair.
+- The NH-27 hypothesis now has three evidence layers instead of one, but
+  it remains real-road-network evidence of a **mixed** road corridor, not a
+  claim that a single continuously-named NH27 way exists end-to-end — see
+  the NH27-share table above.
+- `route_nh6_alternative` remains explicitly waypoint-biased, unchanged
+  method from v1/v2.
 - No turn-restriction data was extracted from the real graph (GraphHopper's
   `/route` path-details API does not expose turn-cost tables); this remains
   desk/fixture-only evidence (section 3).
-- This is a single run against a single dated extract on 2026-09-10. It
-  does not establish ongoing monitoring, a checksummed *operational* graph
-  version, or A-M1-03's stable internal segment IDs.
+- OSM way IDs are not obtainable via GraphHopper's public API surface in
+  this version; only tag-derived `street_name`/`street_ref` evidence was
+  collected.
+- This is a single run against a single dated extract on 2026-09-10,
+  reusing (not re-downloading) the same PBF as v1/v2. It does not establish
+  ongoing monitoring, a checksummed *operational* graph version, or
+  A-M1-03's stable internal segment IDs.
+- The rigid-truck safety fix did not change any route reported here (see
+  Fix 1 above) because this dataset does not currently exhibit the tag
+  values it guards against; it is not validated end-to-end against a real
+  DELIVERY/DESTINATION/PRIVATE-tagged or sub-16t-`max_weight`-tagged way in
+  this corridor.
 - The retained PBF, jar, and generated GraphHopper cache are not committed
   to git; only the receipts above are. The scratch sandbox
-  (`D:/SIH-2026/.m0-graph-sandbox2/`) was deleted after evidence extraction;
+  (`D:/SIH-2026/.m0-graph-sandbox3/`) was deleted after evidence extraction;
   the dated PBF is retained separately at
   `D:\SIH-2026\NER_LENS_ARTIFACTS\m0\` and its hash was verified identical
-  both before and after the route run.
+  (byte-for-byte with v1/v2's recorded values) both before and after this
+  route run.
 - No route in this evidence is operationally verified; see the boundary
   statement above.
 
@@ -328,9 +370,9 @@ by `tests/path_b/routing/test_real_evidence_receipts.py`.
 | SHA-256 | see `data/corridor/graphhopper/fixture_graph.v1.sha256` (recomputed by `tests/replay/routing/test_route_replay_fixtures.py::test_checksum_matches_recorded_provenance` on every test run) |
 | Label | `synthetic_replay_fixture` |
 | `is_real_osm_extract` | `false` |
-| `real_osm_extract_status` | `obtained_separately_not_merged_into_this_synthetic_fixture` (corrected in the second corrective audit — see section 4a; this fixture is deliberately never merged with real data so the two evidence layers cannot be confused) |
-| Real extract SHA-256 (section 4a) | `9250938dd6e8c61ad3ca533620a86c5d286e86f60c2bc45086e173f2ace068a9` (`north-eastern-zone-260909.osm.pbf`, OSM data as of `2026-09-09T20:21:20Z`) |
-| Retained PBF path | `D:\SIH-2026\NER_LENS_ARTIFACTS\m0\north-eastern-zone-260909.osm.pbf` (outside git; hash verified before and after the route run) |
+| `real_osm_extract_status` | `obtained_separately_not_merged_into_this_synthetic_fixture` (this fixture is deliberately never merged with real data so the two evidence layers cannot be confused) |
+| Real extract SHA-256 (section 4a) | `9250938dd6e8c61ad3ca533620a86c5d286e86f60c2bc45086e173f2ace068a9` (`north-eastern-zone-260909.osm.pbf`, OSM data as of `2026-09-09T20:21:20Z`; identical across v1, v2, and v3 — reused, not re-downloaded, for v3) |
+| Retained PBF path | `D:\SIH-2026\NER_LENS_ARTIFACTS\m0\north-eastern-zone-260909.osm.pbf` (outside git; hash verified before and after the v2 route run, and again before and after the v3 route run) |
 
 The fixture checksum and the real-extract checksum are recorded separately
 and are not substitutes for each other. Neither is a substitute for the
@@ -340,59 +382,81 @@ backend imports a graph for real.
 ## 6. GraphHopper profile draft
 
 `data/corridor/graphhopper/vehicle_profiles.yaml` documents the
-`light_goods`, `rigid_truck`, and `emergency` profiles. Section 4a's second
-real run confirms this shape works against a real GraphHopper 11.0 instance
+`light_goods`, `rigid_truck`, and `emergency` profiles. Section 4a's real
+runs confirm this shape works against a real GraphHopper 11.0 instance
 using **project-specific custom models with the exact numeric limits**
-(`data/corridor/graphhopper/real_evidence/v2/{light_goods,rigid_truck,emergency}.json`),
-not generic proxies. Wiring any of this into the backend remains B-M1-02
+(`data/corridor/graphhopper/real_evidence/v3/{light_goods,rigid_truck,emergency}.json`),
+not generic proxies. `rigid_truck.json` additionally now hard-excludes
+`hgv==DELIVERY`/`DESTINATION`/`road_access==PRIVATE` and never permits a
+`max_weight_except` bypass (section 4a Fix 1), with the same
+`max_weight_except` correction extended to `light_goods.json`/
+`emergency.json`. Wiring any of this into the backend remains B-M1-02
 scope; **no backend GraphHopper adapter was implemented** as part of this
 task.
 
-## 7. Known limitations (honest disclosure, updated after the second corrective audit)
+## 7. Known limitations (honest disclosure, updated after the third corrective audit)
 
-1. **RESOLVED — a real OSM extract was processed**, twice, most recently
-   with the three exact project vehicle profiles (section 4a). What remains
-   open: A-M1-03 must still import a graph into the *backend's* operational
-   schema with stable internal segment IDs; this audit's real run proves
-   the extract and GraphHopper mechanics work, not that the backend
-   integration is done.
+1. **RESOLVED — a real OSM extract was processed**, three times now, most
+   recently with `street_ref` detail and per-band leg queries (section 4a).
+   What remains open: A-M1-03 must still import a graph into the
+   *backend's* operational schema with stable internal segment IDs; this
+   audit's real runs prove the extract and GraphHopper mechanics work, not
+   that the backend integration is done.
 2. **RESOLVED — A-M0-01 has published its corridor artifact and this
    document is reconciled with it** (section 0).
 3. **RESOLVED — the exact three project vehicle profiles were run**, not
    generic car/truck proxies, with no invented emergency legal exemption
    (section 4a).
 4. **RESOLVED — the timestamp inconsistency in the first real run** (an
-   HTTP proxy `Date` header treated as retrieval time) is corrected; v2 uses
-   independently captured shell-clock timestamps with an explicit
+   HTTP proxy `Date` header treated as retrieval time) is corrected;
+   v2/v3 use independently captured shell-clock timestamps with an explicit
    methodology note (section 4a).
-5. **CONFIRMED, not merely assumed, by two independent real runs —
+5. **RESOLVED — `rigid_truck.json`'s hard-exclusion defect** (a 0.1x
+   penalty instead of a `multiply_by 0` exclusion for
+   `hgv==DELIVERY`/`DESTINATION`/`road_access==PRIVATE`, and an unauthorized
+   `max_weight_except` bypass) is fixed in v3, with a direct regression
+   test (section 4a Fix 1). The fix did not change any route on this
+   dataset, which does not currently exhibit those tag values — stated
+   honestly, not implied to be end-to-end validated against them.
+6. **RESOLVED — the NH-27 hypothesis is no longer represented by a single
+   unconstrained direct query alone.** It now has a labelled control, a
+   threaded via-band-waypoint candidate query, and six independent per-band
+   leg queries with a corridor-edge mapping showing the real (mixed) set of
+   road refs traversed and a cross-checked leg-sum-vs-threaded-query
+   consistency proof (section 4a Fix 2).
+7. **CONFIRMED, not merely assumed, by three independent real runs —
    heavy-vehicle/bridge/tunnel restriction data is absent from OSM for this
    corridor.** `hgv=missing` and `max_height`/`max_weight` unset along the
-   entire returned path, for both candidates and now all three exact
-   profiles. This mirrors `docs/RISKS_AND_DECISIONS.md` R-06 with real,
-   repeated measurement.
-6. **Turn restrictions remain unaudited against real data**, though an
+   entire returned path, for every route/leg and all three exact profiles.
+   This mirrors `docs/RISKS_AND_DECISIONS.md` R-06 with real, repeated
+   measurement.
+8. **Turn restrictions remain unaudited against real data**, though an
    executable check now exists against the synthetic fixture (section 3).
    GraphHopper's `/route` path-details API does not expose turn-cost
    tables; extracting this would require a different tool (e.g. inspecting
    the graph's turn-cost storage directly), out of this bounded scope.
-7. **NH-6 continuity is confirmed only at one segment by a real "NH6"
-   OSM name tag; NH-27 has no equivalent real name-tag match** in the
-   returned path's instructions (section 4a road-name evidence). Neither
+9. **NH-6 continuity is confirmed only at one segment by a real "NH6"
+   OSM name tag; NH-27's real `street_ref` evidence is a genuine plurality/
+   majority share (45-61% of distance on the via-bands query) but not a
+   single continuous way** (section 4a road-name/ref evidence). Neither
    route's full end-to-end continuity along its named highway is confirmed
    edge-by-edge; both rest on endpoint/via-point selection plus the desk
    audit's authority citations.
-8. **NH-6 alternative surface/hazard data remains largely
-   `unverified`/`unknown`** in the desk audit; the real run confirms
-   topological routability but does not resolve surface quality.
-9. **No local driver or authority reviewer has been consulted.** Still
-   open; outside Path B's ownership (see the human/partner evidence list
-   at the end of this document).
-10. **Endpoint/via-point coordinates are approximate town-level
+10. **OSM way IDs are not obtainable** via GraphHopper's public `/route`/
+    `/info` API surface in this version; only tag-derived `street_name`/
+    `street_ref` evidence was collected and is disclosed as such, not
+    substituted with fabricated IDs.
+11. **NH-6 alternative surface/hazard data remains largely
+    `unverified`/`unknown`** in the desk audit; the real run confirms
+    topological routability but does not resolve surface quality.
+12. **No local driver or authority reviewer has been consulted.** Still
+    open; outside Path B's ownership (see the human/partner evidence list
+    at the end of this document).
+13. **Endpoint/via-point coordinates are approximate town-level
     coordinates**, not surveyed points, in both the desk audit and the real
     run's query parameters.
 
-Limitations 1-4 are newly resolved by this second corrective audit. The
+Limitations 1-6 are newly resolved by this third corrective audit. The
 remainder are recorded so Sol and Terra can assess whether they still block
 P0 — and per A-M0-01's signed ledger, several (named authority, reviewer,
 mission owner, policy thresholds) are outside Path B's ownership and remain
@@ -402,34 +466,38 @@ blocking regardless of routing evidence.
 
 | Acceptance criterion (MILESTONES.md) | Status |
 |---|---|
-| Topology, surface, bridge/tunnel, access, `maxheight`, `maxweight`, `hgv`, construction, turn and direction checks are recorded | Met — executable checks for every category against the synthetic fixture (section 3), and topology/hgv/maxheight/maxweight/bridge/tunnel/ford presence confirmed against real data for all three exact profiles (section 4a) |
+| Topology, surface, bridge/tunnel, access, `maxheight`, `maxweight`, `hgv`, construction, turn and direction checks are recorded | Met — executable checks for every category against the synthetic fixture (section 3), and topology/hgv/maxheight/maxweight/bridge/tunnel/ford presence confirmed against real data for all three exact profiles across 27 route/leg combinations (section 4a) |
 | One route is not removed by risk alone | Met — direction-restriction case and D-007 regression test |
-| Missing legality data is visible | Met — `missing_legality_data`/`coverage_state` on every band, enforced by test; confirmed against real data (twice) in section 4a |
+| Missing legality data is visible | Met — `missing_legality_data`/`coverage_state` on every band, enforced by test; confirmed against real data (three times) in section 4a |
 | GraphHopper unavailability has a deterministic fixture path | Met — `graphhopper_outage.json` |
-| Route fixture tests for closed edge, vehicle restriction, direction, and no-feasible-route | Met — 28 passing tests in `tests/replay/routing/` and `tests/path_b/routing/`, plus 20 real-evidence-receipt tests |
-| Checksum test for graph extract | Met for the **synthetic audit fixture** (enforced by test) and for the **real extract** — retained PBF hash verified before and after the route run, recorded in provenance and enforced by `test_pbf_hash_recorded_in_provenance_matches_retention_record` |
-| Both candidates are routable, or an explicit rejection is recorded | Met with real evidence — both candidates returned real HTTP 200 routes for all three exact profiles in GraphHopper 11.0 against the real dated extract (section 4a) |
+| Route fixture tests for closed edge, vehicle restriction, direction, and no-feasible-route | Met — 28 passing tests in `tests/replay/routing/` and `tests/path_b/routing/`, plus 51 real-evidence-receipt tests (including rigid-truck hard-exclusion regressions and corridor-edge-mapping checks) |
+| Checksum test for graph extract | Met for the **synthetic audit fixture** (enforced by test) and for the **real extract** — retained PBF hash verified before/after the v2 run and again before/after the v3 run, recorded in provenance and enforced by `test_pbf_hash_unchanged_since_v2_and_matches_retention_record` |
+| Both candidates are routable, or an explicit rejection is recorded | Met with real evidence — both candidates returned real HTTP 200 routes for all three exact profiles across control, via-bands, per-leg, and NH-6 queries in GraphHopper 11.0 against the real dated extract (section 4a) |
+| Corridor identity is distinguished from generic point connectivity | Met — control/via-bands/per-leg evidence layers and `street_ref`-based corridor-edge mapping (section 4a Fix 2) |
+| Vehicle-legality hard exclusions cannot be converted into penalties | Met — `rigid_truck.json` hard-excludes `hgv==DELIVERY`/`DESTINATION`/`road_access==PRIVATE`, with a direct regression test (section 4a Fix 1) |
 
 ## 9. Completion condition, Terra P0 status, and next dependency
 
 Per `docs/MILESTONES.md`, B-M0-01's completion condition is: "route audit is
 signed and labelled replay alternatives are available." The replay
 alternatives are available (section 4), reconciliation with A-M0-01 is done
-(section 0), and real routing evidence now exists (section 4a). **This audit
-is not itself a Terra P0 sign-off** — Terra P0 is a cross-path gate, and
-A-M0-01's own signed ledger records it as `BLOCKED` for reasons entirely
-outside Path B's ownership: no named status authority, no evidence reviewer,
-no mission owner, no source-terms approval, no positive-event/ground-truth
-ledger, and no operational-owner-approved policy thresholds. Path B's route
-and restriction evidence does not and cannot resolve those items.
+(section 0), and real routing evidence now exists across three corrective
+rounds (section 4a). **This audit is not itself a Terra P0 sign-off** —
+Terra P0 is a cross-path gate, and A-M0-01's own signed ledger records it as
+`BLOCKED` for reasons entirely outside Path B's ownership: no named status
+authority, no evidence reviewer, no mission owner, no source-terms
+approval, no positive-event/ground-truth ledger, and no operational-owner-
+approved policy thresholds. Path B's route and restriction evidence does
+not and cannot resolve those items.
 
-**The routing sub-gate is ready for Terra to rerun.** Its two named defects
-— generic car/truck profiles instead of the three exact project profiles,
-and the timestamp inconsistency in the real-evidence provenance — are both
-corrected in section 4a with committed, checksummed, independently
-verifiable receipts. Terra P0 **as a whole** remains blocked pending the
-human/partner evidence listed below, which is not resolvable by further
-routing/graph work and is not a Path B deliverable.
+**The routing sub-gate is ready for Terra to rerun.** Its two P1 findings
+from the third verdict — the rigid-truck penalty-instead-of-exclusion
+defect (plus the unauthorized `max_weight_except` bypass), and the
+unconstrained-direct-query-as-NH-27-proof conflation — are both corrected
+in section 4a with committed, checksummed, independently verifiable
+receipts and direct regression tests. Terra P0 **as a whole** remains
+blocked pending the human/partner evidence listed below, which is not
+resolvable by further routing/graph work and is not a Path B deliverable.
 
 **Exact next dependency for Path B:** Sol's accepted M0 contract commit
 (`S-M0-01`) with Terra P0 sign-off across *all* M0 tracks (A, B, and the

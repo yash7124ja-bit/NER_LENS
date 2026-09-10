@@ -1,31 +1,54 @@
-"""B-M0-01 second corrective-audit tests: validate the committed real-evidence
-RECEIPTS, not a live service.
+"""B-M0-01 third routing-evidence-correction tests: validate the committed
+real-evidence RECEIPTS in real_evidence/v3/, not a live service.
 
 BOUNDARY STATEMENT: No GraphHopper server, Docker container, or network call
 runs during these tests. The scratch sandbox that produced these receipts
-(D:/SIH-2026/.m0-graph-sandbox2/) was deleted after evidence extraction, per
+(D:/SIH-2026/.m0-graph-sandbox3/) was deleted after evidence extraction, per
 instruction not to commit large/generated artifacts. These tests check that
 the committed JSON/YAML receipt files in
-data/corridor/graphhopper/real_evidence/v2/ are internally consistent,
-checksummed, and honestly labelled — they cannot and do not re-verify the
+data/corridor/graphhopper/real_evidence/v3/ are internally consistent,
+checksummed, and honestly labelled -- they cannot and do not re-verify the
 real world against a running GraphHopper instance. Re-running the real query
 requires D:\\SIH-2026\\NER_LENS_ARTIFACTS\\m0\\ (the retained PBF) and
 docker/GraphHopper, per REPRODUCE.md.
+
+v2 is superseded (see ../v2_superseded/SUPERSEDED.md); a subset of tests
+here also check that v2 remains clearly marked as superseded rather than
+silently deleted or left ambiguous.
 """
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-EVIDENCE_DIR = REPO_ROOT / "data" / "corridor" / "graphhopper" / "real_evidence" / "v2"
+GRAPHHOPPER_DIR = REPO_ROOT / "data" / "corridor" / "graphhopper"
+EVIDENCE_DIR = GRAPHHOPPER_DIR / "real_evidence" / "v3"
 RAW_RESPONSES_DIR = EVIDENCE_DIR / "raw_responses"
+V2_SUPERSEDED_DIR = GRAPHHOPPER_DIR / "real_evidence" / "v2_superseded"
 
 EXPECTED_PROFILES = {"light_goods", "rigid_truck", "emergency"}
-EXPECTED_ROUTE_IDS = {"route_nh27_primary", "route_nh6_alternative"}
 EXPECTED_DATA_DATE = "2026-09-09T20:21:20Z"
+EXPECTED_BAND_IDS = {
+    "band_1_jalukbari_nagaon",
+    "band_2_nagaon_doboka",
+    "band_3_doboka_lanka_lumding",
+    "band_4_lumding_maibang",
+    "band_5_maibang_harangajao_balachera_hill",
+    "band_6_balachera_silchar",
+}
+LEG_PREFIXES = [
+    "nh27_leg1_band1_jalukbari_nagaon",
+    "nh27_leg2_band2_nagaon_doboka",
+    "nh27_leg3_band3_doboka_lanka_lumding",
+    "nh27_leg4_band4_lumding_maibang",
+    "nh27_leg5_band5_maibang_harangajao_balachera",
+    "nh27_leg6_band6_balachera_silchar",
+]
+ROUTE_KIND_PREFIXES = ["nh27_control_direct", "nh27_via_bands"] + LEG_PREFIXES + ["nh6_alternative"]
 
 
 def load_json(path):
@@ -36,8 +59,29 @@ def load_yaml(path):
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
+def strip_json_comments(text):
+    """GraphHopper's custom_model loader (Jackson with ALLOW_JAVA_COMMENTS)
+    accepts leading `//` line comments; json.loads does not. Strip them the
+    same way before parsing so these tests read the exact committed file."""
+    return "\n".join(
+        line for line in text.splitlines() if not line.strip().startswith("//")
+    )
+
+
+def load_custom_model(path):
+    return json.loads(strip_json_comments(path.read_text(encoding="utf-8")))
+
+
 def sha256_of(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    """LF-normalized: some committed JSON receipts were written by Python's
+    json.dump() in text mode on Windows (CRLF); git normalizes line endings
+    on add/checkout, so hashing raw bytes could drift across checkouts.
+    Normalizing here matches the LF-normalized hashes recorded in
+    real_extract_provenance.yaml and mirrors the fix already applied to
+    fixture_graph.v1.sha256. This is a no-op for files with no CRLF (e.g.
+    the curl-written raw_info.json / raw_responses/*.json)."""
+    raw = path.read_bytes().replace(b"\r\n", b"\n")
+    return hashlib.sha256(raw).hexdigest()
 
 
 def test_all_three_exact_profiles_present_in_info_response():
@@ -54,29 +98,60 @@ def test_info_response_identifies_expected_graph_data_date():
     assert provenance["graphhopper"]["confirmed_data_date"] == EXPECTED_DATA_DATE
 
 
-def test_both_route_hypotheses_have_a_receipt_for_every_profile():
+def test_all_27_route_kind_profile_combinations_have_a_receipt():
     index = load_json(EVIDENCE_DIR / "response_index.json")
-    seen = {(q["route_id"], q["profile"]) for q in index["queries"]}
-    expected = {(r, p) for r in EXPECTED_ROUTE_IDS for p in EXPECTED_PROFILES}
+    seen = {q["query_id"] for q in index["queries"]}
+    expected = {f"{kind}_{profile}" for kind in ROUTE_KIND_PREFIXES for profile in EXPECTED_PROFILES}
     assert seen == expected, f"missing combinations: {expected - seen}"
+    assert len(index["queries"]) == 27
 
 
 @pytest.mark.parametrize(
-    "route_id,profile",
-    [(r, p) for r in sorted(EXPECTED_ROUTE_IDS) for p in sorted(EXPECTED_PROFILES)],
+    "query_id",
+    [f"{kind}_{profile}" for kind in ROUTE_KIND_PREFIXES for profile in sorted(EXPECTED_PROFILES)],
 )
-def test_raw_response_file_exists_and_hash_matches_index(route_id, profile):
+def test_raw_response_file_exists_and_hash_matches_index(query_id):
     index = load_json(EVIDENCE_DIR / "response_index.json")
-    entry = next(
-        q for q in index["queries"] if q["route_id"] == route_id and q["profile"] == profile
-    )
-    response_path = RAW_RESPONSES_DIR / entry["response_file"]
-    assert response_path.exists(), f"missing raw receipt for {route_id}/{profile}"
-    assert sha256_of(response_path) == entry["sha256"], (
-        f"raw response hash drift for {route_id}/{profile}"
-    )
+    entry = next(q for q in index["queries"] if q["query_id"] == query_id)
+    response_path = EVIDENCE_DIR / entry["response_file"]
+    assert response_path.exists(), f"missing raw receipt for {query_id}"
+    assert sha256_of(response_path) == entry["sha256"], f"raw response hash drift for {query_id}"
     body = load_json(response_path)
     assert "paths" in body and len(body["paths"]) >= 1
+
+
+def test_nh27_via_bands_query_covers_all_six_audited_bands():
+    """The 'NH-27 candidate' threaded query and the independent per-band leg
+    queries must together account for exactly the six audited bands -- no
+    band silently dropped, no extra band invented."""
+    mapping = load_json(EVIDENCE_DIR / "corridor_edge_mapping.json")
+    band_ids = {b["band_id"] for b in mapping["bands"]}
+    assert band_ids == EXPECTED_BAND_IDS
+
+
+def test_nh27_control_direct_is_not_presented_as_corridor_proof():
+    provenance = load_yaml(EVIDENCE_DIR / "real_extract_provenance.yaml")
+    control = provenance["routes_queried"]["route_nh27_control_direct"]
+    assert "CONTROL ONLY" in control["role"]
+    assert "NOT presented as NH-27 corridor proof" in control["role"]
+    via_bands = provenance["routes_queried"]["route_nh27_via_bands"]
+    assert "THE NH-27 CANDIDATE" in via_bands["role"]
+
+
+def test_leg_distance_sum_matches_threaded_via_bands_query():
+    """Cross-check: GraphHopper's multi-point response must equal the
+    concatenation of the independent per-leg queries. A mismatch would mean
+    the two evidence layers disagree and neither could be trusted alone."""
+    mapping = load_json(EVIDENCE_DIR / "corridor_edge_mapping.json")
+    for profile, check in mapping["consistency_check"].items():
+        assert abs(check["difference_m"]) < 1.0, f"{profile}: leg sum does not match threaded query"
+
+
+def test_corridor_edge_mapping_and_result_summary_hashes_match_provenance():
+    provenance = load_yaml(EVIDENCE_DIR / "real_extract_provenance.yaml")
+    assert sha256_of(EVIDENCE_DIR / "result_summary.json") == provenance["result_summary_sha256"]
+    assert sha256_of(EVIDENCE_DIR / "response_index.json") == provenance["response_index_sha256"]
+    assert sha256_of(EVIDENCE_DIR / "corridor_edge_mapping.json") == provenance["corridor_edge_mapping_sha256"]
 
 
 def test_info_response_hash_matches_provenance_record():
@@ -84,38 +159,24 @@ def test_info_response_hash_matches_provenance_record():
     assert sha256_of(EVIDENCE_DIR / "raw_info.json") == provenance["graphhopper"]["info_response_sha256"]
 
 
-def test_result_summary_and_response_index_hashes_match_provenance():
-    provenance = load_yaml(EVIDENCE_DIR / "real_extract_provenance.yaml")
-    assert sha256_of(EVIDENCE_DIR / "result_summary.json") == provenance["result_summary_sha256"]
-    assert sha256_of(EVIDENCE_DIR / "response_index.json") == provenance["response_index_sha256"]
-
-
-def test_result_summary_references_expected_profiles_and_routes():
-    summary = load_json(EVIDENCE_DIR / "result_summary.json")
-    profiles_seen = {v["profile"] for v in summary.values()}
-    routes_seen = {v["route_id"] for v in summary.values()}
-    assert profiles_seen == EXPECTED_PROFILES
-    assert routes_seen == EXPECTED_ROUTE_IDS
-    assert len(summary) == 6
-
-
 def test_required_provenance_fields_exist():
     provenance = load_yaml(EVIDENCE_DIR / "real_extract_provenance.yaml")
     required_top_level = {
         "osm_extract", "retention", "graphhopper", "vehicle_profiles",
-        "routes_queried", "queries", "result_summary_file", "result_summary_sha256",
-        "response_index_file", "response_index_sha256", "real_findings",
-        "honest_limitations",
+        "routes_queried", "result_summary_file", "result_summary_sha256",
+        "response_index_file", "response_index_sha256",
+        "corridor_edge_mapping_file", "corridor_edge_mapping_sha256",
+        "real_findings", "honest_limitations",
     }
     assert required_top_level.issubset(provenance.keys())
 
     osm = provenance["osm_extract"]
-    for field in ("source_url", "licence", "byte_size", "md5", "sha256", "retrieval_timestamps_utc"):
+    for field in ("source_url", "licence", "byte_size", "md5", "sha256"):
         assert field in osm, f"osm_extract missing {field}"
 
     retention = provenance["retention"]
     for field in ("absolute_path", "byte_size", "md5", "sha256", "source_url",
-                  "licence", "retrieved_at_utc", "hash_verified_after_route_run_at_utc"):
+                  "licence", "reverification_before_mount_utc", "reverification_after_route_run_utc"):
         assert field in retention, f"retention missing {field}"
     assert retention["retained_outside_git"] is True
 
@@ -131,79 +192,140 @@ def test_retention_record_uses_the_documented_artifacts_path():
     assert provenance["retention"]["absolute_path"] == expected_path
 
 
-def test_timestamps_are_independent_shell_clock_captures_not_bare_http_date():
-    """Regression for the first corrective audit's timestamp inconsistency:
-    the authoritative retrieval timestamps must be explicitly captured
-    before/after each network call, and any HTTP Date header must be
-    labelled informational only, not authoritative."""
+def test_pbf_hash_unchanged_since_v2_and_matches_retention_record():
+    """The PBF was reused (not re-downloaded) for v3; its hash must be
+    identical to the retention record and to itself before/after this run."""
     provenance = load_yaml(EVIDENCE_DIR / "real_extract_provenance.yaml")
-    ts = provenance["osm_extract"]["retrieval_timestamps_utc"]
-    assert "local_clock_before_download" in ts
-    assert "local_clock_after_download" in ts
-    assert ts["method"].startswith("this session's shell")
-    http_info = provenance["osm_extract"]["http_response_headers_informational_only"]
-    assert "note" in http_info
-    assert "not the retrieval time" in http_info["note"].lower()
+    assert provenance["osm_extract"]["sha256"] == provenance["retention"]["sha256"]
+    assert provenance["osm_extract"]["md5"] == provenance["retention"]["md5"]
+    assert provenance["osm_extract"]["byte_size"] == provenance["retention"]["byte_size"]
+    assert provenance["osm_extract"]["not_redownloaded_this_run"] is True
+    # must match the byte-for-byte value already recorded by v2 (v2 is
+    # preserved, not deleted, specifically so this cross-check is possible)
+    v2_provenance = load_yaml(V2_SUPERSEDED_DIR / "real_extract_provenance.yaml")
+    assert provenance["osm_extract"]["sha256"] == v2_provenance["osm_extract"]["sha256"]
+    assert provenance["osm_extract"]["md5"] == v2_provenance["osm_extract"]["md5"]
 
+
+def test_v2_is_marked_superseded():
+    superseded_note = V2_SUPERSEDED_DIR / "SUPERSEDED.md"
+    assert superseded_note.exists()
+    text = superseded_note.read_text(encoding="utf-8").lower()
+    assert "superseded" in text
+    assert "v3" in text
+
+
+# --- Task 2: rigid-truck hard-exclusion regression tests ---------------
+
+def test_rigid_truck_hard_excludes_delivery_and_destination_hgv():
+    model = load_custom_model(EVIDENCE_DIR / "rigid_truck.json")
+    rules = model["priority"]
+    matching = [
+        r for r in rules
+        if "DELIVERY" in r["if"] and "DESTINATION" in r["if"]
+    ]
+    assert matching, "expected a priority rule gating on hgv==DELIVERY and hgv==DESTINATION"
+    for r in matching:
+        assert r["multiply_by"] == "0", (
+            f"hgv DELIVERY/DESTINATION must be a hard exclusion (multiply_by 0), got {r}"
+        )
+
+
+def test_rigid_truck_hard_excludes_private_road_access():
+    model = load_custom_model(EVIDENCE_DIR / "rigid_truck.json")
+    rules = model["priority"]
+    matching = [r for r in rules if "road_access == PRIVATE" in r["if"]]
+    assert matching, "expected a priority rule gating on road_access == PRIVATE"
+    for r in matching:
+        assert r["multiply_by"] == "0", (
+            f"road_access==PRIVATE must be a hard exclusion (multiply_by 0), got {r}"
+        )
+
+
+def test_rigid_truck_restrictions_are_never_a_small_penalty():
+    """Regression for the exact v2 defect: no priority rule may convert
+    hgv==DELIVERY/DESTINATION or road_access==PRIVATE into a fractional
+    (e.g. 0.1) penalty instead of a hard 0 exclusion."""
+    model = load_custom_model(EVIDENCE_DIR / "rigid_truck.json")
+    for r in model["priority"]:
+        condition = r["if"]
+        if any(term in condition for term in ("DELIVERY", "DESTINATION", "PRIVATE")):
+            multiplier = r["multiply_by"]
+            assert multiplier in ("0", 0), (
+                f"restriction condition {condition!r} must multiply_by 0, "
+                f"not a penalty value like {multiplier!r}"
+            )
+
+
+def test_rigid_truck_max_weight_exception_cannot_bypass_the_vehicle_limit():
+    """No authorization-backed applicability input exists in M0 for
+    max_weight_except; the model must exclude below-limit max_weight
+    unconditionally, never carve out an except-tagged bypass."""
+    model = load_custom_model(EVIDENCE_DIR / "rigid_truck.json")
+    weight_rules = [r for r in model["priority"] if "max_weight" in r["if"]]
+    assert weight_rules, "expected a max_weight exclusion rule"
+    for r in weight_rules:
+        assert "max_weight_except" not in r["if"], (
+            f"max_weight_except must not gate the max_weight exclusion, got {r}"
+        )
+        assert r["multiply_by"] == "0"
+
+
+@pytest.mark.parametrize("profile_file", ["light_goods.json", "emergency.json"])
+def test_other_profiles_also_drop_the_max_weight_exception_bypass(profile_file):
+    """Consistency extension: the same no-authorization-input rationale
+    applies to every profile, not just rigid_truck."""
+    model = load_custom_model(EVIDENCE_DIR / profile_file)
+    weight_rules = [r for r in model["priority"] if "max_weight" in r["if"]]
+    assert weight_rules
+    for r in weight_rules:
+        assert "max_weight_except" not in r["if"]
+        assert r["multiply_by"] == "0"
+
+
+def test_no_invented_delivery_destination_private_government_or_emergency_exemption():
+    """emergency.json and light_goods.json must not grant an exemption for
+    DELIVERY/DESTINATION/PRIVATE/government access beyond car_access."""
+    for profile_file in ("emergency.json", "light_goods.json"):
+        model = load_custom_model(EVIDENCE_DIR / profile_file)
+        text = json.dumps(model)
+        for forbidden in ("DELIVERY", "DESTINATION", "GOVERNMENT"):
+            assert forbidden not in text, f"{profile_file} must not reference {forbidden} at all"
+
+
+# --- shared invariants (real vs synthetic, no operational-verified claim) --
 
 def test_real_and_synthetic_evidence_cannot_be_confused():
-    """The synthetic fixture and the real evidence must each be
-    unambiguously labelled and must never share a graph_id/label."""
-    synthetic = load_json(
-        REPO_ROOT / "data" / "corridor" / "graphhopper" / "fixture_graph.v1.json"
-    )
+    synthetic = load_json(GRAPHHOPPER_DIR / "fixture_graph.v1.json")
     assert synthetic["label"] == "synthetic_replay_fixture"
     assert synthetic["is_real_osm_extract"] is False
-    # the fixture's own provenance status must not misleadingly claim no
-    # real extract exists anywhere in this audit
     assert synthetic["provenance"]["real_osm_extract_status"] != "not_yet_obtained"
 
     provenance = load_yaml(EVIDENCE_DIR / "real_extract_provenance.yaml")
     assert provenance["osm_extract"]["sha256"] != ""
-    # the real evidence has no "label" field claiming to be a replay/synthetic
-    # fixture, and the synthetic fixture's graph_id differs from any real
-    # extract identifier
     assert "graph_id" not in provenance
     assert synthetic["graph_id"] == "ner_lens_route_audit_fixture_v1"
 
 
 def test_unknown_osm_restrictions_remain_unknown_in_real_receipts():
-    """The real run must not silently invent hgv/height/weight values where
-    OSM has none. Every query's real receipt must show hgv missing and
-    max_height/max_weight unset, matching the desk audit's prediction."""
     summary = load_json(EVIDENCE_DIR / "result_summary.json")
     for query_id, entry in summary.items():
-        details = entry["path_details_segment_value_counts"]
-        assert details["hgv"] == {"missing": details["hgv"].get("missing", 0)} or set(
-            details["hgv"].keys()
-        ) == {"missing"}, f"{query_id} unexpectedly has a non-missing hgv value"
-        assert set(details["max_height"].keys()) == {"None"}, query_id
-        assert set(details["max_weight"].keys()) == {"None"}, query_id
+        assert set(entry["max_height_distinct_values"]) == {"None"}, query_id
+        assert set(entry["max_weight_distinct_values"]) == {"None"}, query_id
+        hgv_keys = set(entry["hgv_distance_m"].keys())
+        assert hgv_keys == {"missing"}, f"{query_id} unexpectedly has a non-missing hgv value: {hgv_keys}"
 
 
 def test_no_route_is_declared_operationally_verified():
-    """A 200 response from GraphHopper is graph/vehicle-constraint feasibility,
-    not an authorized operational status. Nothing in the committed receipts
-    may assert an operational verification claim."""
     provenance = load_yaml(EVIDENCE_DIR / "real_extract_provenance.yaml")
     limitations_text = " ".join(provenance["honest_limitations"]).lower()
     assert "not operationally verified" in limitations_text or "no route" in limitations_text
 
-    for path in [EVIDENCE_DIR / "result_summary.json", EVIDENCE_DIR / "response_index.json"]:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        serialized = json.dumps(payload).lower()
+    for path in [EVIDENCE_DIR / "result_summary.json", EVIDENCE_DIR / "response_index.json",
+                 EVIDENCE_DIR / "corridor_edge_mapping.json"]:
+        serialized = path.read_text(encoding="utf-8").lower()
         assert "operationally_verified" not in serialized
         assert '"verified": true' not in serialized
-
-
-def test_pbf_hash_recorded_in_provenance_matches_retention_record():
-    """Cross-check that the two places the PBF hash is recorded (download
-    provenance and retention record) agree; a real mismatch here would mean
-    the retained file drifted from what was actually queried."""
-    provenance = load_yaml(EVIDENCE_DIR / "real_extract_provenance.yaml")
-    assert provenance["osm_extract"]["sha256"] == provenance["retention"]["sha256"]
-    assert provenance["osm_extract"]["md5"] == provenance["retention"]["md5"]
-    assert provenance["osm_extract"]["byte_size"] == provenance["retention"]["byte_size"]
 
 
 def test_nh6_waypoint_bias_is_explicitly_disclosed():
@@ -211,5 +333,16 @@ def test_nh6_waypoint_bias_is_explicitly_disclosed():
     nh6 = provenance["routes_queried"]["route_nh6_alternative"]
     assert nh6["via_points"], "NH-6 query must record its via-points"
     assert "WAYPOINT-BIASED" in nh6["note"]
-    nh27 = provenance["routes_queried"]["route_nh27_primary"]
-    assert nh27["via_points"] == []
+    control = provenance["routes_queried"]["route_nh27_control_direct"]
+    assert control["via_points"] == []
+
+
+def test_no_route_is_fabricated_as_pure_nh27_when_it_is_a_real_mix():
+    """The via-bands NH-27 share must be reported as a real fraction, never
+    smoothed to 100%, and the mapping must disclose the other real refs
+    found on the path."""
+    mapping = load_json(EVIDENCE_DIR / "corridor_edge_mapping.json")
+    for profile, comp in mapping["overall_route_comparison"].items():
+        assert 0 < comp["via_bands_nh27_ref_share"] < 1, (
+            f"{profile}: NH27 share must be a genuine fraction, not 0 or a fabricated 1.0"
+        )

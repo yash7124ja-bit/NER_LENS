@@ -1,0 +1,189 @@
+# Real OSM extract and GraphHopper run provenance -- B-M0-01 THIRD routing
+# evidence correction (v3). Supersedes v2 (see
+# ../v2_superseded/SUPERSEDED.md for the two defects this run fixes).
+#
+# TIMESTAMP METHODOLOGY (unchanged from v2, reused here): all authoritative
+# timestamps below are captured independently, immediately before/after each
+# network or container operation, by this session's own shell clock
+# (`date -u`). No HTTP response header (Date/Last-Modified/Age) is treated
+# as an authoritative timestamp anywhere in this document.
+#
+# WHAT CHANGED FROM v2 (see v2_superseded/SUPERSEDED.md for full detail):
+#   1. rigid_truck.json: hgv==DELIVERY / hgv==DESTINATION / road_access==
+#      PRIVATE are now hard-excluded (multiply_by "0"), not a 0.1x penalty.
+#   2. rigid_truck.json (and, as a consistency extension, light_goods.json
+#      and emergency.json): max_weight_except no longer bypasses an active
+#      max_weight restriction below the profile's own limit; no
+#      authorization-backed applicability input exists in M0 to justify
+#      that bypass.
+#   3. The NH-27 hypothesis is now queried three ways per profile, not one:
+#      (a) nh27_control_direct -- the original unconstrained two-point query,
+#          RELABELLED as a control, never as NH-27 continuity evidence;
+#      (b) nh27_via_bands -- one threaded query through all six audited band
+#          waypoints (band_1..band_6 endpoint coordinates from
+#          fixture_graph.v1.json / route-manifest.yaml), the actual
+#          "NH-27 candidate" run;
+#      (c) six independent nh27_leg{1..6}_bandN_<profile> two-point queries,
+#          one per audited band, giving a direct per-band road-ref mapping
+#          instead of an inference from a single multi-point response.
+#      NH-6 is queried exactly as in v1/v2 (Shillong/Jowai waypoint-biased),
+#      unchanged method.
+
+osm_extract:
+  source_url: "https://download.geofabrik.de/asia/india/north-eastern-zone-260909.osm.pbf"
+  publisher: "Geofabrik GmbH, OpenStreetMap contributors"
+  licence: "Open Database License (ODbL) 1.0, attribution required, per https://www.openstreetmap.org/copyright"
+  osm_data_as_of: "2026-09-09T20:21:20Z"   # unchanged from v1/v2; reconfirmed again below via GraphHopper /info data_date
+  byte_size: 109305518
+  md5: "eee3d24fe21d7be1d1b4f01603979273"
+  sha256: "9250938dd6e8c61ad3ca533620a86c5d286e86f60c2bc45086e173f2ace068a9"
+  not_redownloaded_this_run: true
+  reused_from: "D:\\SIH-2026\\NER_LENS_ARTIFACTS\\m0\\north-eastern-zone-260909.osm.pbf (already retained and hash-verified twice by the v2 run; this run is a third independent verification, before and after mounting/querying)"
+
+retention:
+  absolute_path: "D:\\SIH-2026\\NER_LENS_ARTIFACTS\\m0\\north-eastern-zone-260909.osm.pbf"
+  retained_outside_git: true
+  byte_size: 109305518
+  md5: "eee3d24fe21d7be1d1b4f01603979273"
+  sha256: "9250938dd6e8c61ad3ca533620a86c5d286e86f60c2bc45086e173f2ace068a9"
+  source_url: "https://download.geofabrik.de/asia/india/north-eastern-zone-260909.osm.pbf"
+  licence: "ODbL 1.0, OpenStreetMap contributors, attribution required"
+  reverification_before_mount_utc: "2026-09-10T06:35:13Z"
+  reverification_after_route_run_utc: "2026-09-10T06:38:09Z"
+  reverification_result: "byte size, MD5, and SHA-256 all identical to the v2-recorded pre-run values and to each other; the retained file did not change"
+  retention_status: "retained; not committed to git; not a substitute for A-M1-03's operational graph import"
+
+graphhopper:
+  version: "11.0"
+  release_source: "https://github.com/graphhopper/graphhopper/releases/download/11.0/graphhopper-web-11.0.jar (official GitHub release)"
+  jar_byte_size: 47346509
+  jar_sha256: "b59c024afe172ec6ec85b6327006c3138ec58c7d0bcd26253d0e42853f613def"   # identical to v1/v2; confirms same official artifact re-downloaded fresh for this run
+  jar_retrieval_timestamps_utc:
+    local_clock_before: "2026-09-10T06:34:24Z"
+    local_clock_after: "2026-09-10T06:34:37Z"
+  runtime: "eclipse-temurin:21-jre-jammy (official Docker image), java -Xmx3g -jar graphhopper-web-11.0.jar server config.yml"
+  container_run_local_clock_utc: "2026-09-10T06:35:41Z"   # container start (first attempt at 06:35:29 failed on a Docker Desktop path-mangling error under git-bash, retried successfully with MSYS_NO_PATHCONV=1; both attempts are in this session's shell history)
+  import_completed_at: "2026-09-10T06:35:57Z"   # from GraphHopper /info data written at import time
+  server_ready_confirmed_at_utc: "2026-09-10T06:36:31Z"   # first successful /info poll (polled every 10s starting at container start)
+  info_query_timestamps_utc:
+    local_clock: "2026-09-10T06:35:57Z"
+  info_response_sha256: "ddb9eb43a19ffd8e4faf02af217ff9f03b43db574e699f09171aa611f0872a6e"
+  info_response_file: "raw_info.json"
+  confirmed_data_date: "2026-09-09T20:21:20Z"
+  confirmed_bbox: [87.967972, 21.738713, 97.329353, 29.452746]
+  confirmed_profiles_present: ["light_goods", "rigid_truck", "emergency"]
+  config_file: "graphhopper-config.yml"
+  config_sha256: "1452e3503c6d892d28e85f1c1b04638d7020c3d474b0283bfdbd470e73d20fe8"   # identical to v2's config; only the custom_model JSON files changed
+
+vehicle_profiles:
+  light_goods:
+    source_file: "light_goods.json"
+    sha256: "3c946d24608d10d1473df7e873fb9b1771975de984112a1d5a1fa744b443c64a"
+    max_weight_t: 3.5
+    max_height_m: 2.5
+    hgv_exempt: true
+    change_from_v2: "max_weight_except no longer bypasses the max_weight<3.5 exclusion (consistency extension of the rigid_truck fix; no authorization input exists in M0)."
+  rigid_truck:
+    source_file: "rigid_truck.json"
+    sha256: "ae39d1cc1a6ed9ef2e8aa74a8ea3441193b4d939640f8d3a68a678881b6fc0ba"
+    max_weight_t: 16.0
+    max_height_m: 3.8
+    hgv_exempt: false
+    change_from_v2:
+      - "hgv == DELIVERY and hgv == DESTINATION are now hard-excluded (multiply_by 0), not a 0.1x speed penalty."
+      - "road_access == PRIVATE is now hard-excluded (multiply_by 0), not a 0.1x speed penalty."
+      - "max_weight_except no longer bypasses the max_weight<16 exclusion."
+    preparation: "CH (contraction hierarchies), EDGE_BASED (turn_costs enabled: vehicle_types [hgv, motorcar, motor_vehicle])"
+  emergency:
+    source_file: "emergency.json"
+    sha256: "a31b1ee9722ae07b7f4ea9d25b36caff98c4381ae6e25a5d3824ab49beb1a4be"
+    max_weight_t: 7.5
+    max_height_m: 3.0
+    hgv_exempt: true
+    change_from_v2: "max_weight_except no longer bypasses the max_weight<7.5 exclusion (consistency extension; same no-authorization-input rationale)."
+    no_invented_exemption_statement: >
+      Unchanged from v2: no time-window/convoy exemption is encoded because no
+      supporting OSM/GraphHopper encoded value exists in this run's
+      graph.encoded_values list. This profile enforces road_access,
+      max_height, and max_weight identically to light_goods.
+  safety_effect_of_the_fix_on_this_dataset: >
+    All 27 v3 queries (3 profiles x 9 route/leg combinations) returned HTTP
+    200 both before and after the rigid_truck fix; the corrected exclusions
+    did not change feasibility anywhere on this specific extract, because no
+    hgv=DELIVERY/DESTINATION, road_access=PRIVATE, or max_weight-below-16t
+    tag was encountered on any queried path (see real_findings below and
+    corridor_edge_mapping.json's per-band road_access/hgv/max_weight
+    columns, which are uniform "yes"/"missing"/"None" throughout). The fix
+    is a conservative-correctness change for segments this dataset does not
+    currently exhibit, not a change that altered any route returned here.
+
+routes_queried:
+  route_nh27_control_direct:
+    canonical_id: "guwahati_silchar_nh27"
+    role: "CONTROL ONLY -- retained from v1/v2, explicitly NOT presented as NH-27 corridor proof"
+    request_points: ["26.1445,91.7362", "24.8333,92.7789"]
+    via_points: []
+    note: "Unconstrained origin-to-destination query. street_ref evidence shows this path is dominated by NH6/NH37/SH38,SH-023 refs with only a small NH27 fraction (2.1-2.1% of distance across profiles) -- see corridor_edge_mapping.json overall_route_comparison. This is GraphHopper's own shortest/fastest path, not a trace of the audited NH-27 corridor."
+  route_nh27_via_bands:
+    canonical_id: "guwahati_silchar_nh27"
+    role: "THE NH-27 CANDIDATE -- threaded through the six audited band waypoints"
+    request_points: ["26.1445,91.7362", "26.3489,92.684", "26.131,92.893", "25.755,93.171", "25.426,93.293", "24.943,92.975", "24.8333,92.7789"]
+    via_points: ["26.3489,92.684 (Nagaon)", "26.131,92.893 (Doboka)", "25.755,93.171 (Lanka/Lumding)", "25.426,93.293 (Maibang)", "24.943,92.975 (Harangajao/Balachera hill)"]
+    note: "Forces the path through all six audited band endpoints in the documented NHAI/NHIDCL/Parliamentary-record direction (Nagaon -> Doboka -> Lanka/Lumding -> Maibang -> Harangajao/Balachera -> Silchar). NH27-ref share of total distance: 45.4% (light_goods), 60.6% (rigid_truck/emergency) -- substantially higher than the control, but still a real mix with SH37, Nc-M-1, NH137G, CA-M-001, NH715A, SH3, NH29, NH329 and unnamed local roads, not a single continuous NH27 way. See corridor_edge_mapping.json for the full per-band breakdown."
+  route_nh27_legs:
+    canonical_id: "guwahati_silchar_nh27"
+    role: "Six independent per-band two-point queries, one per audited band, used to build the corridor-edge mapping"
+    band_ids: ["band_1_jalukbari_nagaon", "band_2_nagaon_doboka", "band_3_doboka_lanka_lumding", "band_4_lumding_maibang", "band_5_maibang_harangajao_balachera_hill", "band_6_balachera_silchar"]
+    note: "Sum of the six leg distances equals the threaded via_bands distance exactly (0m difference) for every profile -- see corridor_edge_mapping.json consistency_check. Bands 1,2,3,4,6 are identical geometry across all three profiles; band 5 diverges (see divergence_findings) for a routing-preference reason unrelated to any legality restriction."
+  route_nh6_alternative:
+    canonical_id: "guwahati_silchar_nh6"
+    role: "unchanged from v1/v2"
+    request_points: ["26.1445,91.7362", "25.5788,91.8933", "25.4340,92.1935", "24.8333,92.7789"]
+    via_points: ["25.5788,91.8933 (Shillong)", "25.4340,92.1935 (Jowai)"]
+    note: "WAYPOINT-BIASED, unchanged method from v1/v2. The literal street_name 'NH6' still appears in instructions for this route (see result_summary.json), giving direct single-segment OSM-tag evidence, not full end-to-end continuity."
+
+query_count: 27
+query_local_clock_window_utc: "2026-09-10T06:37:53Z to 2026-09-10T06:37:57Z (all 27 queries executed within a 4-second window against the locally running container; see query_timestamps.log for every individual before/after timestamp and HTTP status)"
+
+# NOTE ON HASHES BELOW: result_summary.json, response_index.json, and
+# corridor_edge_mapping.json were generated by Python's json.dump() in text
+# mode on Windows, which writes CRLF line endings. Git normalizes CRLF->LF
+# when these files are added/checked out under this repo's autocrlf
+# behaviour, so the byte-for-byte hash of the file "as most recently
+# written to disk" can differ from the hash of "the file as git stores and
+# checks it out". To make this checksum robust across platforms/checkouts
+# (the same fix already applied to fixture_graph.v1.sha256 in section 5),
+# the hashes below are computed over LF-normalized bytes
+# (raw.replace(b"\r\n", b"\n")), and the corresponding test helper does the
+# same normalization before comparing. raw_info.json and raw_responses/*.json
+# were written directly by curl (no CRLF), so normalization is a no-op for
+# them and their hashes are unaffected either way.
+result_summary_file: "result_summary.json"
+result_summary_sha256: "4f4dc4bf0b50a8d41c19e66acacaabf205bc3d83701a9b681f5c925a358a0f26"
+response_index_file: "response_index.json"
+response_index_sha256: "339ebe97b55cb21388d3d98b7f14dcde6fba08978cda46984e1e356030f3b7c5"
+corridor_edge_mapping_file: "corridor_edge_mapping.json"
+corridor_edge_mapping_sha256: "1370d2c15b3066063390d28d530b16c0661f45e3ed30c664260fa3ea1f331bec"
+
+real_findings:
+  all_27_queries_returned_http_200: true
+  hgv_tag_coverage: "missing (unset) along the entire returned path, every profile, every route/leg queried"
+  max_height_max_weight_tag_coverage: "unset (None) along the entire returned path, every profile, every route/leg queried"
+  road_access_coverage: "uniformly 'yes' along every returned path in this run; no PRIVATE/DELIVERY/DESTINATION-tagged way was encountered on any of the 27 queried paths in this extract"
+  rigid_truck_fix_changed_feasibility_here: false   # see vehicle_profiles.safety_effect_of_the_fix_on_this_dataset above
+  warnings_or_errors: "none; all 27 queries returned HTTP 200 with no 'hints'-reported routing errors (only visited_nodes performance stats)"
+  band5_path_divergence: "light_goods takes a materially different (shorter) physical path than rigid_truck/emergency on band_5_maibang_harangajao_balachera_hill, with no access/hgv/height/weight difference explaining it -- a distance_influence routing-preference effect, not a legality exclusion. See corridor_edge_mapping.json divergence_findings."
+  road_name_evidence_nh27_control: "Dominated by NH6 (~66-68% of distance) with NH27 only ~2.1% of distance; NH37 and SH38/SH-023 also present. This is honest evidence that the unconstrained shortest path is NOT the NH-27 corridor."
+  road_name_evidence_nh27_via_bands: "NH27 rises to 45.4% (light_goods) / 60.6% (rigid_truck, emergency) of distance -- the largest single ref, but the route is a real mix with SH37, Nc-M-1 (a numbered corridor/link road ref, not further identified in this OSM extract), NH137G, CA-M-001, NH715A, SH3, NH29, NH329, and unnamed local roads. No fabricated smoothing to '100% NH27' was applied."
+  road_name_evidence_nh6: "Unchanged from v2: literal 'NH6' street_name appears in all three profile queries for this route; single-segment evidence, not full continuity."
+  osm_way_ids: "NOT obtainable via GraphHopper's public /route or /info API in this version; GraphHopper's path_details expose street_name/street_ref (OSM tags) and internal edge/node IDs meaningful only inside its own graph, not OSM way IDs. This audit does not fabricate way IDs; where the task asked for them 'where obtainable', they were not obtainable through this API surface, and that limitation is stated here rather than worked around."
+
+honest_limitations:
+  - "Corridor identity for the NH-27 hypothesis is now supported by three layers of evidence (control, via-bands threaded query, six independent per-band legs) instead of one, but it remains real-road-network evidence, not a claim that the audited corridor is a single continuously-named NH27 way. See real_findings.road_name_evidence_nh27_via_bands."
+  - "route_nh6_alternative is explicitly waypoint-biased through Shillong and Jowai; GraphHopper does not have a 'follow this named highway' query mode. Unchanged from v1/v2."
+  - "turn restrictions were not extracted from the real graph; GraphHopper's /route path-details API does not expose turn-cost/turn-restriction tables. This remains synthetic-fixture-only evidence (see docs/decisions/route-audit.md section 3)."
+  - "OSM way IDs are not obtainable via GraphHopper's public API surface in this version; only street_name/street_ref (OSM tag-derived) evidence was collected. See real_findings.osm_way_ids."
+  - "This is a single run against a single dated extract on 2026-09-10, reusing the same PBF as v1/v2 (re-verified, not re-downloaded). It does not establish ongoing monitoring, a checksummed OPERATIONAL graph version, or A-M1-03's stable internal segment IDs."
+  - "The rigid_truck safety fix (hard-excluding hgv==DELIVERY/DESTINATION, road_access==PRIVATE, and removing the max_weight_except bypass) did not change any route returned in this run, because this dataset does not currently exhibit those tag values on the queried paths (see real_findings.rigid_truck_fix_changed_feasibility_here). The fix closes a conservative-correctness gap for data this run did not happen to exercise; it is not validated end-to-end against a real DELIVERY/DESTINATION/PRIVATE-tagged or sub-16t-max_weight-tagged way in this corridor."
+  - "No route in this evidence is operationally verified. GraphHopper returning HTTP 200 means the graph and vehicle constraints as encoded permit a path; it is not an authorized operational status, not a confirmed-safe route, and not a substitute for CONTRACTS.md's RouteVerificationPolicy outcome enum, which requires policy thresholds this audit does not have."
+  - "The retained PBF, jar, and generated GraphHopper cache are NOT committed to git. Only this manifest, the raw JSON receipts, config, custom models, and derived corridor-edge mapping are committed. The scratch sandbox that ran the container (D:/SIH-2026/.m0-graph-sandbox3/) is deleted after evidence extraction; only the PBF is retained externally at the path recorded above."
