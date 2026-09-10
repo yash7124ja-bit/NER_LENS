@@ -1,0 +1,18 @@
+{
+  "case_id": "graphhopper_outage",
+  "label": "replay_fixture",
+  "description": "The GraphHopper sidecar is unreachable or times out. This is not a graph/band property; it is a router-availability scenario. Per ARCHITECTURE.md section 11 and CONTRACTS.md, the adapter must return a labelled, deterministic degraded result and never an unlabelled cached route.",
+  "request": {
+    "route_id": "route_nh27_primary",
+    "vehicle_profile": "rigid_truck",
+    "direction": "forward",
+    "router_state": "unavailable"
+  },
+  "expected": {
+    "http_status": 502,
+    "error_code": "upstream_unavailable",
+    "route_feasible": null,
+    "notes": "route_feasible is explicitly null (not false) because unavailability is not a hard-constraint exclusion; it is a router failure. The distinction matters: a null/unavailable result must never be interpreted as 'no feasible route' or cached and served as if verified."
+  },
+  "implementation_note": "This fixture proves a deterministic fixture path exists for router outage per B-M0-01 acceptance criteria. Implementing the actual GraphHopper adapter and its timeout/retry behavior is B-M1-02 scope, not B-M0-01."
+}

@@ -1,0 +1,35 @@
+{
+  "case_id": "no_feasible_route",
+  "label": "replay_fixture",
+  "description": "rigid_truck from Guwahati to Silchar: route_nh27_primary is hard-excluded by the simulated active closure at band_test_kolong_bridge_closure; route_nh6_alternative is hard-excluded by the hgv=no / unconfirmed-open restriction at band_alt_2_shillong_jowai. Both candidates are excluded, so the audit conclusion is the structural 'no verified feasible route' scenario defined in CONTRACTS.md (every candidate hard-excluded; routes empty; blocking_constraints explains why).",
+  "request": {
+    "vehicle_profile": "rigid_truck",
+    "direction": "forward",
+    "hard_excluded_band_ids": ["band_test_kolong_bridge_closure"],
+    "candidate_routes": [
+      {"route_id": "route_nh27_primary", "bands_in_scope": ["band_test_kolong_bridge_closure"]},
+      {"route_id": "route_nh6_alternative", "bands_in_scope": ["band_alt_2_shillong_jowai"]}
+    ]
+  },
+  "expected": {
+    "route_nh27_primary": {
+      "route_feasible": false,
+      "excluded_bands": [
+        {"band_id": "band_test_kolong_bridge_closure", "reason_code": "applicable_active_closure"}
+      ]
+    },
+    "route_nh6_alternative": {
+      "route_feasible": false,
+      "excluded_bands": [
+        {"band_id": "band_alt_2_shillong_jowai", "reason_code": "hgv_access_restricted"}
+      ]
+    },
+    "audit_conclusion": "no_verified_feasible_route",
+    "routes": [],
+    "blocking_constraints": [
+      "route_nh27_primary excluded by band_test_kolong_bridge_closure: applicable_active_closure",
+      "route_nh6_alternative excluded by band_alt_2_shillong_jowai: hgv_access_restricted"
+    ]
+  },
+  "acceptance_note": "MILESTONES.md D-008/ARCHITECTURE.md section 6/7: no feasible route is a valid, explicit result, never a fabricated ETA or a silently degraded cached route."
+}

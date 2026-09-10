@@ -1,0 +1,39 @@
+{
+  "case_id": "bridge_tunnel_access",
+  "label": "replay_fixture",
+  "description": "band_3_doboka_lanka_lumding is a bridge with maxheight_m=2.2, maxweight_t=9.0, hgv=no. rigid_truck (max_height_m=3.8, max_weight_t=16.0, hgv_exempt=false) is excluded on all three structural/legal grounds. light_goods (max_height_m=2.5, max_weight_t=3.5, hgv_exempt=true) is within the weight limit and hgv-exempt but still exceeds the bridge's 2.2 m clearance, proving a physical clearance constraint applies independently of HGV exemption.",
+  "requests": [
+    {
+      "route_id": "route_nh27_primary",
+      "vehicle_profile": "rigid_truck",
+      "direction": "forward",
+      "bands_in_scope": ["band_3_doboka_lanka_lumding"],
+      "hard_excluded_band_ids": []
+    },
+    {
+      "route_id": "route_nh27_primary",
+      "vehicle_profile": "light_goods",
+      "direction": "forward",
+      "bands_in_scope": ["band_3_doboka_lanka_lumding"],
+      "hard_excluded_band_ids": []
+    }
+  ],
+  "expected": [
+    {
+      "vehicle_profile": "rigid_truck",
+      "route_feasible": false,
+      "excluded_bands": [
+        {"band_id": "band_3_doboka_lanka_lumding", "reason_code": "maxheight_exceeded"},
+        {"band_id": "band_3_doboka_lanka_lumding", "reason_code": "maxweight_exceeded"},
+        {"band_id": "band_3_doboka_lanka_lumding", "reason_code": "hgv_access_restricted"}
+      ]
+    },
+    {
+      "vehicle_profile": "light_goods",
+      "route_feasible": false,
+      "excluded_bands": [
+        {"band_id": "band_3_doboka_lanka_lumding", "reason_code": "maxheight_exceeded"}
+      ]
+    }
+  ]
+}

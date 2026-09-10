@@ -1,0 +1,48 @@
+{
+  "case_id": "vehicle_restriction",
+  "label": "replay_fixture",
+  "description": "A local no-HGV traffic control (band_4_lumding_maibang) must exclude the rigid_truck profile but must not exclude light_goods or emergency, which are hgv-exempt per vehicle_profiles.yaml.",
+  "requests": [
+    {
+      "route_id": "route_nh27_primary",
+      "vehicle_profile": "rigid_truck",
+      "direction": "forward",
+      "bands_in_scope": ["band_4_lumding_maibang"],
+      "hard_excluded_band_ids": []
+    },
+    {
+      "route_id": "route_nh27_primary",
+      "vehicle_profile": "light_goods",
+      "direction": "forward",
+      "bands_in_scope": ["band_4_lumding_maibang"],
+      "hard_excluded_band_ids": []
+    },
+    {
+      "route_id": "route_nh27_primary",
+      "vehicle_profile": "emergency",
+      "direction": "forward",
+      "bands_in_scope": ["band_4_lumding_maibang"],
+      "hard_excluded_band_ids": []
+    }
+  ],
+  "expected": [
+    {
+      "vehicle_profile": "rigid_truck",
+      "route_feasible": false,
+      "excluded_bands": [
+        {"band_id": "band_4_lumding_maibang", "reason_code": "hgv_access_restricted"}
+      ]
+    },
+    {
+      "vehicle_profile": "light_goods",
+      "route_feasible": true,
+      "excluded_bands": []
+    },
+    {
+      "vehicle_profile": "emergency",
+      "route_feasible": true,
+      "excluded_bands": []
+    }
+  ],
+  "acceptance_note": "This is the required 'non-applicable vehicle restriction does not exclude unrelated profiles' test from VALIDATION_PLAN.md section 3."
+}

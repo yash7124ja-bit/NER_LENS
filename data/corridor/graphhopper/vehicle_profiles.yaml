@@ -1,0 +1,68 @@
+# NER LENS GraphHopper vehicle profile draft — B-M0-01
+#
+# Status: DOCUMENTATION DRAFT, not a running GraphHopper instance or verified
+# routing result. No self-hosted GraphHopper server has been deployed or
+# executed in this environment for this audit. These profile definitions
+# follow GraphHopper's documented custom_model / vehicle-encoded-value shape
+# (see GraphHopper profiles docs, cited in docs/decisions/route-audit.md) and
+# exist so B-M1-02 can implement the adapter against a reviewed profile
+# definition instead of inventing one during implementation.
+#
+# Physical/legal restriction fields (max_weight_t, max_height_m, hgv_access)
+# are the fields the routing hard-constraint filter MUST check before any
+# risk scoring, per ARCHITECTURE.md D-007 and CONTRACTS.md RouteVerificationPolicy.
+
+profiles:
+  light_goods:
+    graphhopper_base_vehicle: "car"
+    description: "Light goods vehicle; least restricted profile."
+    max_weight_t: 3.5
+    max_height_m: 2.5
+    hgv_exempt: true
+    hard_constraints_checked:
+      - topology
+      - surface
+      - direction
+      - access
+      - construction
+
+  rigid_truck:
+    graphhopper_base_vehicle: "truck"
+    description: "Rigid truck; primary essential-medicine mission profile candidate."
+    max_weight_t: 16.0
+    max_height_m: 3.8
+    hgv_exempt: false
+    hard_constraints_checked:
+      - topology
+      - surface
+      - bridge_tunnel_clearance
+      - maxheight
+      - maxweight
+      - hgv
+      - direction
+      - access
+      - construction
+      - turn_restrictions
+
+  emergency:
+    graphhopper_base_vehicle: "car"
+    description: "Emergency/essential-medicine vehicle. Physical limits still apply per ARCHITECTURE.md edge case table ('Emergency vehicle has legal exemption: separate documented profile; physical limits still apply')."
+    max_weight_t: 7.5
+    max_height_m: 3.0
+    hgv_exempt: true
+    legal_exemptions:
+      - "May be exempt from time-window/convoy restrictions where locally documented; NOT exempt from bridge/tunnel physical clearance or maxweight structural limits."
+    hard_constraints_checked:
+      - topology
+      - surface
+      - bridge_tunnel_clearance
+      - maxheight
+      - maxweight
+      - direction
+      - access
+      - construction
+
+notes:
+  - "hard_constraints_checked lists the audit categories required by MILESTONES.md B-M0-01 acceptance criteria: topology, surface, bridge/tunnel, access, maxheight, maxweight, hgv, construction, turn and direction."
+  - "A risk score (landslide susceptibility, rainfall, staleness) must never appear in this file's exclusion logic. Risk ranks feasible alternatives; it does not create one. See ARCHITECTURE.md D-007."
+  - "GraphHopper unavailability handling: the adapter contract (B-M1-02, not implemented here) must return a labelled degraded/upstream_unavailable result, never an unlabelled cached route. See tests/replay/routing/cases/graphhopper_outage.json for the deterministic fixture case."

@@ -1,0 +1,19 @@
+{
+  "case_id": "closed_edge",
+  "label": "replay_fixture",
+  "description": "An applicable active closure (simulated StatusDecision input, not a real status write) must hard-exclude the route through it, for every vehicle profile, regardless of risk context on the same or other bands.",
+  "request": {
+    "route_id": "route_nh27_primary",
+    "vehicle_profile": "rigid_truck",
+    "direction": "forward",
+    "bands_in_scope": ["band_test_kolong_bridge_closure"],
+    "hard_excluded_band_ids": ["band_test_kolong_bridge_closure"]
+  },
+  "expected": {
+    "route_feasible": false,
+    "excluded_bands": [
+      {"band_id": "band_test_kolong_bridge_closure", "reason_code": "applicable_active_closure"}
+    ],
+    "blocking_constraints": ["band_test_kolong_bridge_closure: applicable_active_closure"]
+  }
+}

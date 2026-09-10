@@ -1,0 +1,244 @@
+{
+  "graph_id": "ner_lens_route_audit_fixture_v1",
+  "label": "synthetic_replay_fixture",
+  "provisional": true,
+  "is_real_osm_extract": false,
+  "created_at": "2026-09-10T00:00:00Z",
+  "provenance": {
+    "type": "desk_audit_synthetic_fixture",
+    "method": "Hand-authored from named authority documents and the SIH-26002 source dossiers; NOT produced by downloading or processing a real Geofabrik OSM PBF extract or running a live GraphHopper server.",
+    "basis_sources": [
+      "NHAI road-section annexure (NH-27 Nagaon-Doboka, Doboka-Lanka, Maibang-Narimbanglo, Balachera-Silchar)",
+      "NHIDCL Assam corridors (Balachera-Harangajao NH-27)",
+      "Parliamentary highway record confirming Guwahati-Silchar NH-27",
+      "PIB Mawlyngkhung-Panchgram project approval (planned corridor context for NH-6 alternative)",
+      "Borah and Dutta 2025 (landslide susceptibility along NH27/NH627)",
+      "Gogoi and Gogoi 2026 (Dima Hasao landslide susceptibility)"
+    ],
+    "real_osm_extract_status": "not_yet_obtained",
+    "honest_limitation": "No maxheight, maxweight, hgv, or construction tag coverage has been verified against a real OSM extract for this corridor. Values below are audit placeholders derived from cited documents and explicit gaps, not measured OSM tag values. Each band lists 'missing_legality_data' where true tag coverage is unknown."
+  },
+  "vehicle_profiles_ref": "data/corridor/graphhopper/vehicle_profiles.yaml",
+  "bands": [
+    {
+      "band_id": "band_1_jalukbari_nagaon",
+      "route_id": "route_nh27_primary",
+      "sequence": 1,
+      "segment_type": "road",
+      "direction": "both",
+      "geometry_endpoints": [[91.7362, 26.1445], [92.6840, 26.3489]],
+      "topology_routable": true,
+      "surface": "paved",
+      "restrictions": {
+        "maxheight_m": null,
+        "maxweight_t": null,
+        "hgv": "unknown",
+        "access": "yes",
+        "construction": false,
+        "turn_restrictions": []
+      },
+      "hazard_context": {"landslide_susceptibility": "low", "flood_context": "moderate (Brahmaputra floodplain)"},
+      "missing_legality_data": ["maxheight_m", "maxweight_t", "hgv"],
+      "citations": ["NHAI road-section annexure", "Parliamentary highway record"]
+    },
+    {
+      "band_id": "band_2_nagaon_doboka",
+      "route_id": "route_nh27_primary",
+      "sequence": 2,
+      "segment_type": "road",
+      "direction": "both",
+      "geometry_endpoints": [[92.6840, 26.3489], [92.8930, 26.1310]],
+      "topology_routable": true,
+      "surface": "paved",
+      "restrictions": {
+        "maxheight_m": null,
+        "maxweight_t": null,
+        "hgv": "yes",
+        "access": "yes",
+        "construction": false,
+        "turn_restrictions": []
+      },
+      "hazard_context": {"landslide_susceptibility": "low", "flood_context": "moderate (Kolong basin)"},
+      "missing_legality_data": ["maxheight_m", "maxweight_t"],
+      "citations": ["NHAI road-section annexure"]
+    },
+    {
+      "band_id": "band_3_doboka_lanka_lumding",
+      "route_id": "route_nh27_primary",
+      "sequence": 3,
+      "segment_type": "bridge",
+      "direction": "both",
+      "geometry_endpoints": [[92.8930, 26.1310], [93.1710, 25.7550]],
+      "topology_routable": true,
+      "surface": "paved",
+      "restrictions": {
+        "maxheight_m": 2.2,
+        "maxweight_t": 9.0,
+        "hgv": "no",
+        "access": "yes",
+        "construction": false,
+        "turn_restrictions": []
+      },
+      "hazard_context": {"landslide_susceptibility": "low", "flood_context": "elevated (river crossing)"},
+      "missing_legality_data": [],
+      "deterministic_case": "bridge_tunnel_access",
+      "citations": ["NHAI road-section annexure"]
+    },
+    {
+      "band_id": "band_4_lumding_maibang",
+      "route_id": "route_nh27_primary",
+      "sequence": 4,
+      "segment_type": "road",
+      "direction": "both",
+      "geometry_endpoints": [[93.1710, 25.7550], [93.2930, 25.4260]],
+      "topology_routable": true,
+      "surface": "paved",
+      "restrictions": {
+        "maxheight_m": null,
+        "maxweight_t": null,
+        "hgv": "no",
+        "access": "no_hgv_local_control",
+        "construction": false,
+        "turn_restrictions": []
+      },
+      "hazard_context": {"landslide_susceptibility": "moderate", "flood_context": "low"},
+      "missing_legality_data": ["maxheight_m", "maxweight_t"],
+      "deterministic_case": "vehicle_restriction",
+      "citations": ["Gogoi and Gogoi 2026"]
+    },
+    {
+      "band_id": "band_5_maibang_harangajao_balachera_hill",
+      "route_id": "route_nh27_primary",
+      "sequence": 5,
+      "segment_type": "road",
+      "direction": "forward_only",
+      "direction_note": "Narrow hill stretch; fixture models an alternating up/down traffic-control window. Reverse direction is infeasible in this fixture, not because of risk, but because of the documented convoy/time-window control (ARCHITECTURE.md edge case: 'Road is passable only in convoy/time window').",
+      "geometry_endpoints": [[93.2930, 25.4260], [92.9750, 24.9430]],
+      "topology_routable": true,
+      "surface": "paved",
+      "restrictions": {
+        "maxheight_m": null,
+        "maxweight_t": null,
+        "hgv": "yes",
+        "access": "yes",
+        "construction": false,
+        "turn_restrictions": []
+      },
+      "hazard_context": {"landslide_susceptibility": "high", "flood_context": "low"},
+      "missing_legality_data": ["maxheight_m", "maxweight_t"],
+      "deterministic_case": "direction_restriction",
+      "risk_must_not_exclude_note": "landslide_susceptibility=high is risk context only. This band remains topologically routable in the forward direction; only the direction constraint is a hard exclusion. Risk alone never excludes a route (ARCHITECTURE.md D-007).",
+      "citations": ["Borah and Dutta 2025", "Gogoi and Gogoi 2026"]
+    },
+    {
+      "band_id": "band_6_balachera_silchar",
+      "route_id": "route_nh27_primary",
+      "sequence": 6,
+      "segment_type": "road",
+      "direction": "both",
+      "geometry_endpoints": [[92.9750, 24.9430], [92.7789, 24.8333]],
+      "topology_routable": true,
+      "surface": "paved",
+      "restrictions": {
+        "maxheight_m": null,
+        "maxweight_t": null,
+        "hgv": "unknown",
+        "access": "yes",
+        "construction": false,
+        "turn_restrictions": []
+      },
+      "hazard_context": {"landslide_susceptibility": "low", "flood_context": "moderate (Barak basin)"},
+      "missing_legality_data": ["maxheight_m", "maxweight_t", "hgv"],
+      "citations": ["NHIDCL Assam corridors"]
+    },
+    {
+      "band_id": "band_test_kolong_bridge_closure",
+      "route_id": "route_nh27_primary",
+      "sequence": 99,
+      "segment_type": "bridge",
+      "direction": "both",
+      "geometry_endpoints": [[92.8930, 26.1310], [92.8950, 26.1250]],
+      "topology_routable": true,
+      "surface": "paved",
+      "restrictions": {
+        "maxheight_m": null,
+        "maxweight_t": null,
+        "hgv": "unknown",
+        "access": "yes",
+        "construction": false,
+        "turn_restrictions": []
+      },
+      "hazard_context": {"landslide_susceptibility": "low", "flood_context": "elevated (river crossing)"},
+      "missing_legality_data": ["maxheight_m", "maxweight_t", "hgv"],
+      "simulated_active_closure": true,
+      "simulated_closure_note": "This band is a synthetic stand-in for an authorized StatusDecision(status=closed) that would arrive via the hard_excluded_segment_ids input contract from Path A's status module (not implemented here; Path B never writes status). Used only to prove the routing hard-constraint filter excludes an applicable active closure.",
+      "deterministic_case": "closed_edge",
+      "citations": ["synthetic - not a real status decision"]
+    },
+    {
+      "band_id": "band_alt_1_guwahati_shillong",
+      "route_id": "route_nh6_alternative",
+      "sequence": 1,
+      "segment_type": "road",
+      "direction": "both",
+      "geometry_endpoints": [[91.7362, 26.1445], [91.8933, 25.5788]],
+      "topology_routable": true,
+      "surface": "paved",
+      "restrictions": {
+        "maxheight_m": null,
+        "maxweight_t": null,
+        "hgv": "unknown",
+        "access": "yes",
+        "construction": false,
+        "turn_restrictions": []
+      },
+      "hazard_context": {"landslide_susceptibility": "moderate", "flood_context": "low"},
+      "missing_legality_data": ["maxheight_m", "maxweight_t", "hgv"],
+      "citations": ["source dossier corridor discussion"]
+    },
+    {
+      "band_id": "band_alt_2_shillong_jowai",
+      "route_id": "route_nh6_alternative",
+      "sequence": 2,
+      "segment_type": "road",
+      "direction": "both",
+      "geometry_endpoints": [[91.8933, 25.5788], [92.1935, 25.4340]],
+      "topology_routable": true,
+      "surface": "unverified",
+      "restrictions": {
+        "maxheight_m": null,
+        "maxweight_t": null,
+        "hgv": "no",
+        "access": "no_hgv_planned_corridor_not_confirmed_open",
+        "construction": true,
+        "turn_restrictions": []
+      },
+      "hazard_context": {"landslide_susceptibility": "moderate", "flood_context": "low"},
+      "missing_legality_data": ["maxheight_m", "maxweight_t", "surface"],
+      "deterministic_case": "no_feasible_route_component",
+      "planned_infrastructure_warning": "Adjacent to the Mawlyngkhung-Panchgram approved-but-not-confirmed-open project. This band must never be treated as an open road for a live claim; hgv=no reflects the unverified/likely-restricted access state used for the no-feasible-route fixture.",
+      "citations": ["PIB Mawlyngkhung-Panchgram project approval"]
+    },
+    {
+      "band_id": "band_alt_3_jowai_panchgram_silchar",
+      "route_id": "route_nh6_alternative",
+      "sequence": 3,
+      "segment_type": "road",
+      "direction": "both",
+      "geometry_endpoints": [[92.1935, 25.4340], [92.7789, 24.8333]],
+      "topology_routable": true,
+      "surface": "unverified",
+      "restrictions": {
+        "maxheight_m": null,
+        "maxweight_t": null,
+        "hgv": "unknown",
+        "access": "yes",
+        "construction": false,
+        "turn_restrictions": []
+      },
+      "hazard_context": {"landslide_susceptibility": "unknown", "flood_context": "unknown"},
+      "missing_legality_data": ["maxheight_m", "maxweight_t", "hgv", "surface", "hazard_context"],
+      "citations": ["source dossier corridor discussion"]
+    }
+  ]
+}

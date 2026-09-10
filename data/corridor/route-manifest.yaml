@@ -1,0 +1,80 @@
+# NER LENS route manifest — B-M0-01 draft input
+#
+# Status: PROVISIONAL. This manifest is Path B's working draft of the corridor
+# and candidate routes, built directly from the two primary SIH-26002 source
+# documents because Path A had not yet published `docs/decisions/corridor-audit.md`
+# or a `CorridorVersion` at the time this audit was produced (verified by
+# inspecting the path-a worktree at commit f6cfd51: no docs/decisions/ or data/
+# directory existed there). It must be reconciled field-by-field against
+# A-M0-01's corridor_id, six named audit bands, route buffer, and administrative
+# unit list once published. See docs/decisions/route-audit.md section
+# "Reconciliation with A-M0-01" for the exact reconciliation procedure.
+#
+# This manifest does not assert that Guwahati-Silchar is the accepted corridor.
+# Acceptance is Sol/Terra P0's decision, informed by A-M0-01 and this document
+# together.
+
+corridor_id: "PROVISIONAL-guwahati-silchar-v0"
+corridor_name: "Guwahati-Silchar (NH-27) with NH-6 alternative"
+provisional: true
+draft_source: "SIH-26002 primary source documents (dossier + tech blueprint), not an approved CorridorVersion"
+pending_reconciliation_with: "A-M0-01 docs/decisions/corridor-audit.md (not yet published as of this draft)"
+
+route_buffer_km: 5
+hazard_context_buffer_km: 20
+administrative_units:
+  - "Kamrup Metropolitan"
+  - "Nagaon"
+  - "Hojai"
+  - "Dima Hasao"
+  - "Cachar"
+
+vehicle_profiles:
+  - light_goods
+  - rigid_truck
+  - emergency
+
+candidate_routes:
+  - route_id: "route_nh27_primary"
+    display_name: "Guwahati-Silchar via NH-27"
+    corridor_role: "primary"
+    origin:
+      label: "Guwahati (Jalukbari) warehouse, approximate town coordinate"
+      coordinates: [91.7362, 26.1445]
+    destination:
+      label: "Silchar, approximate town coordinate"
+      coordinates: [92.7789, 24.8333]
+    bands:
+      - band_1_jalukbari_nagaon
+      - band_2_nagaon_doboka
+      - band_3_doboka_lanka_lumding
+      - band_4_lumding_maibang
+      - band_5_maibang_harangajao_balachera_hill
+      - band_6_balachera_silchar
+    basis_citations:
+      - "NHAI road-section annexure (NH-27 Nagaon-Doboka, Doboka-Lanka, Maibang-Narimbanglo, Balachera-Silchar)"
+      - "NHIDCL Assam corridors (Balachera-Harangajao NH-27)"
+      - "Parliamentary highway record (Guwahati-Silchar NH-27 confirmation)"
+
+  - route_id: "route_nh6_alternative"
+    display_name: "Guwahati-Shillong-Jowai-Silchar via NH-6"
+    corridor_role: "alternative"
+    origin:
+      label: "Guwahati (Jalukbari) warehouse, approximate town coordinate"
+      coordinates: [91.7362, 26.1445]
+    destination:
+      label: "Silchar, approximate town coordinate"
+      coordinates: [92.7789, 24.8333]
+    bands:
+      - band_alt_1_guwahati_shillong
+      - band_alt_2_shillong_jowai
+      - band_alt_3_jowai_panchgram_silchar
+    basis_citations:
+      - "PIB Mawlyngkhung-Panchgram project approval (planned corridor, NOT evidence of current usability; excluded from any 'open' claim)"
+    caveats:
+      - "Heavy-vehicle, construction, and current-access status of this alternative are unverified in this draft."
+      - "The Mawlyngkhung-Panchgram high-speed corridor is a planned/approved project reference, not a confirmed open road. It must never be represented as an operational segment with status=open."
+
+known_gaps:
+  - "No real Geofabrik OSM extract has been downloaded or processed in this environment. All routability/restriction claims below are a desk audit of cited authority documents plus a hand-authored, explicitly labelled synthetic fixture graph, not a live GraphHopper result."
+  - "Truck restriction, bridge load limit, and construction-tag coverage in OSM for this corridor has not been verified against a real extract. This is a known, disclosed gap per MILESTONES.md B-M0-01 acceptance criteria ('missing legality data is visible')."
