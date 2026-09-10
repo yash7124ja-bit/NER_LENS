@@ -1,0 +1,220 @@
+{
+  "queries": [
+    {
+      "query_id": "nh27_control_direct_emergency",
+      "response_file": "raw_responses/nh27_control_direct_emergency.json",
+      "sha256": "a1ba2b5effa0acfc35b875c7e615b51d74e41b5b9cab55b9cc9b23a1f7fe1d62",
+      "http_status": 200,
+      "distance_m": 299827.67,
+      "time_s": 15831.162
+    },
+    {
+      "query_id": "nh27_control_direct_light_goods",
+      "response_file": "raw_responses/nh27_control_direct_light_goods.json",
+      "sha256": "ee191e05adb93e5c07fae3b5c3417c81a897a0f4fc4abccdfce2ead606e9b0d2",
+      "http_status": 200,
+      "distance_m": 298611.783,
+      "time_s": 15907.66
+    },
+    {
+      "query_id": "nh27_control_direct_rigid_truck",
+      "response_file": "raw_responses/nh27_control_direct_rigid_truck.json",
+      "sha256": "c01ec2ba87de666c520fac03da42bd5da19941cfdb4fbe829d460362a8c6be99",
+      "http_status": 200,
+      "distance_m": 302453.648,
+      "time_s": 17556.615
+    },
+    {
+      "query_id": "nh27_leg1_band1_jalukbari_nagaon_emergency",
+      "response_file": "raw_responses/nh27_leg1_band1_jalukbari_nagaon_emergency.json",
+      "sha256": "073b3e93382b0c4326268adfa63844b8a3ffb60fd171b57bb63453fb1306e032",
+      "http_status": 200,
+      "distance_m": 114605.934,
+      "time_s": 6175.125
+    },
+    {
+      "query_id": "nh27_leg1_band1_jalukbari_nagaon_light_goods",
+      "response_file": "raw_responses/nh27_leg1_band1_jalukbari_nagaon_light_goods.json",
+      "sha256": "346bcd08fdc480e56c43c5053c4f34eef9983915d6483f4de7df68bbbf108c1a",
+      "http_status": 200,
+      "distance_m": 114030.996,
+      "time_s": 6216.759
+    },
+    {
+      "query_id": "nh27_leg1_band1_jalukbari_nagaon_rigid_truck",
+      "response_file": "raw_responses/nh27_leg1_band1_jalukbari_nagaon_rigid_truck.json",
+      "sha256": "cbe5e477c8ac4659642609f758383db208c663ac154e1e5e0a0ab9d1ce1ca08b",
+      "http_status": 200,
+      "distance_m": 114605.934,
+      "time_s": 6861.252
+    },
+    {
+      "query_id": "nh27_leg2_band2_nagaon_doboka_emergency",
+      "response_file": "raw_responses/nh27_leg2_band2_nagaon_doboka_emergency.json",
+      "sha256": "9883265f4155c8395f062df39172054fdd639f6c1a28425f99aa8dd00b2825e9",
+      "http_status": 200,
+      "distance_m": 40830.108,
+      "time_s": 2117.063
+    },
+    {
+      "query_id": "nh27_leg2_band2_nagaon_doboka_light_goods",
+      "response_file": "raw_responses/nh27_leg2_band2_nagaon_doboka_light_goods.json",
+      "sha256": "d63691b76c81df18a662240f59b40e55524bb4818b3a85317a7e647a8cb9e982",
+      "http_status": 200,
+      "distance_m": 40830.108,
+      "time_s": 2117.063
+    },
+    {
+      "query_id": "nh27_leg2_band2_nagaon_doboka_rigid_truck",
+      "response_file": "raw_responses/nh27_leg2_band2_nagaon_doboka_rigid_truck.json",
+      "sha256": "f7ecc637b1e4ecb9bf49108ced8bdba1477f5f6ada1b6743426af712941ccaf0",
+      "http_status": 200,
+      "distance_m": 40830.108,
+      "time_s": 2352.302
+    },
+    {
+      "query_id": "nh27_leg3_band3_doboka_lanka_lumding_emergency",
+      "response_file": "raw_responses/nh27_leg3_band3_doboka_lanka_lumding_emergency.json",
+      "sha256": "fb8e7b5b7266f7e3ffd4f4167046ac1f6b85b15d6344da50f1dba68f5067f11a",
+      "http_status": 200,
+      "distance_m": 62194.971,
+      "time_s": 3274.269
+    },
+    {
+      "query_id": "nh27_leg3_band3_doboka_lanka_lumding_light_goods",
+      "response_file": "raw_responses/nh27_leg3_band3_doboka_lanka_lumding_light_goods.json",
+      "sha256": "fdac24bd1606db0c1bda131839254418effb250b42615143f37d69ef123c0806",
+      "http_status": 200,
+      "distance_m": 62194.971,
+      "time_s": 3274.269
+    },
+    {
+      "query_id": "nh27_leg3_band3_doboka_lanka_lumding_rigid_truck",
+      "response_file": "raw_responses/nh27_leg3_band3_doboka_lanka_lumding_rigid_truck.json",
+      "sha256": "b728b6783f9ce8f2e1bf6dffe0134709df25d07d5d754fb4ce30b8284575b234",
+      "http_status": 200,
+      "distance_m": 62194.971,
+      "time_s": 3638.083
+    },
+    {
+      "query_id": "nh27_leg4_band4_lumding_maibang_emergency",
+      "response_file": "raw_responses/nh27_leg4_band4_lumding_maibang_emergency.json",
+      "sha256": "4f7ba88f9c452b381420494ea3d3714a76a0ed31bd5686d4a4d39ad5fb67c230",
+      "http_status": 200,
+      "distance_m": 98379.622,
+      "time_s": 5383.53
+    },
+    {
+      "query_id": "nh27_leg4_band4_lumding_maibang_light_goods",
+      "response_file": "raw_responses/nh27_leg4_band4_lumding_maibang_light_goods.json",
+      "sha256": "3552a994d0e5ceffc216aae400248702f261b365ca6c44342fe7253d91e3a562",
+      "http_status": 200,
+      "distance_m": 98379.622,
+      "time_s": 5383.53
+    },
+    {
+      "query_id": "nh27_leg4_band4_lumding_maibang_rigid_truck",
+      "response_file": "raw_responses/nh27_leg4_band4_lumding_maibang_rigid_truck.json",
+      "sha256": "f1462c31462b0c7039c5688d69bcc2f6c4019e1fcf656d73b083da426d832cdd",
+      "http_status": 200,
+      "distance_m": 98379.622,
+      "time_s": 5981.702
+    },
+    {
+      "query_id": "nh27_leg5_band5_maibang_harangajao_balachera_emergency",
+      "response_file": "raw_responses/nh27_leg5_band5_maibang_harangajao_balachera_emergency.json",
+      "sha256": "c79509030bc203b3e8589f4db570276f2ca31706162c66f6f9ae2b7bf23c2bb7",
+      "http_status": 200,
+      "distance_m": 168772.634,
+      "time_s": 9291.417
+    },
+    {
+      "query_id": "nh27_leg5_band5_maibang_harangajao_balachera_light_goods",
+      "response_file": "raw_responses/nh27_leg5_band5_maibang_harangajao_balachera_light_goods.json",
+      "sha256": "34de4b737824b3b78ec859d82afb2cd0c8c701bba92573df1667431741644509",
+      "http_status": 200,
+      "distance_m": 145600.309,
+      "time_s": 11083.927
+    },
+    {
+      "query_id": "nh27_leg5_band5_maibang_harangajao_balachera_rigid_truck",
+      "response_file": "raw_responses/nh27_leg5_band5_maibang_harangajao_balachera_rigid_truck.json",
+      "sha256": "6e53b6629a3bc62cc07a8c8cfd92c14cd1479ee70e866928d0e003d5da7bbbe9",
+      "http_status": 200,
+      "distance_m": 168772.634,
+      "time_s": 10323.811
+    },
+    {
+      "query_id": "nh27_leg6_band6_balachera_silchar_emergency",
+      "response_file": "raw_responses/nh27_leg6_band6_balachera_silchar_emergency.json",
+      "sha256": "967dfb9754e7bf168bd2a48c2f981a967a1b4b5bc98a3f161be763b9aaedf507",
+      "http_status": 200,
+      "distance_m": 27223.777,
+      "time_s": 1688.062
+    },
+    {
+      "query_id": "nh27_leg6_band6_balachera_silchar_light_goods",
+      "response_file": "raw_responses/nh27_leg6_band6_balachera_silchar_light_goods.json",
+      "sha256": "b9fe10452de0e9edb4c3a2b566a006b82e73cc704645347bb7aadcf85fd46303",
+      "http_status": 200,
+      "distance_m": 27223.777,
+      "time_s": 1688.062
+    },
+    {
+      "query_id": "nh27_leg6_band6_balachera_silchar_rigid_truck",
+      "response_file": "raw_responses/nh27_leg6_band6_balachera_silchar_rigid_truck.json",
+      "sha256": "f479ce885637af40a42049c6603b8f2b25104c3ae88d12cd745d795843bf7ec1",
+      "http_status": 200,
+      "distance_m": 27223.777,
+      "time_s": 1875.628
+    },
+    {
+      "query_id": "nh27_via_bands_emergency",
+      "response_file": "raw_responses/nh27_via_bands_emergency.json",
+      "sha256": "c3a3ccddd2060427d932f28241fcabd8cf4a595eafa4a92cac1d2217d2027409",
+      "http_status": 200,
+      "distance_m": 512007.046,
+      "time_s": 27929.466
+    },
+    {
+      "query_id": "nh27_via_bands_light_goods",
+      "response_file": "raw_responses/nh27_via_bands_light_goods.json",
+      "sha256": "1601c2da506de46d7cef4b9064b065374c905991d573f4b6327c764ac8133c37",
+      "http_status": 200,
+      "distance_m": 488259.783,
+      "time_s": 29763.61
+    },
+    {
+      "query_id": "nh27_via_bands_rigid_truck",
+      "response_file": "raw_responses/nh27_via_bands_rigid_truck.json",
+      "sha256": "31901135902c8200981e50c3e74c4f61cc81080654ccaf4e68114426e38e078f",
+      "http_status": 200,
+      "distance_m": 512007.046,
+      "time_s": 31032.778
+    },
+    {
+      "query_id": "nh6_alternative_emergency",
+      "response_file": "raw_responses/nh6_alternative_emergency.json",
+      "sha256": "cc032f4c4b4ca39c72472427e83392ffbd7776c502933f892219d43ffd00cd08",
+      "http_status": 200,
+      "distance_m": 308571.877,
+      "time_s": 16580.217
+    },
+    {
+      "query_id": "nh6_alternative_light_goods",
+      "response_file": "raw_responses/nh6_alternative_light_goods.json",
+      "sha256": "573cb0b6c8b27bc03700b6933196ea821d4e6939ff7ce10c2fc246c707f805f7",
+      "http_status": 200,
+      "distance_m": 307312.727,
+      "time_s": 16667.586
+    },
+    {
+      "query_id": "nh6_alternative_rigid_truck",
+      "response_file": "raw_responses/nh6_alternative_rigid_truck.json",
+      "sha256": "5ddfac5f23113cd392651e50ba04fcd265368477464bba1d73adff27e47c6e06",
+      "http_status": 200,
+      "distance_m": 309412.03,
+      "time_s": 18417.43
+    }
+  ]
+}

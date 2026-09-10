@@ -1,0 +1,40 @@
+// Project-specific custom model for the "emergency" profile.
+// Numeric limits are copied verbatim from
+// data/corridor/graphhopper/vehicle_profiles.yaml (max_weight_t: 7.5,
+// max_height_m: 3.0, hgv_exempt: true). Structurally identical to
+// light_goods.json (car_access-based, not gated on the hgv encoded value)
+// with emergency's own weight/height thresholds.
+//
+// HONEST LIMITATION, not an invented exemption: vehicle_profiles.yaml
+// documents a possible "exempt from time-window/convoy restrictions where
+// locally documented" legal exemption for emergency vehicles. GraphHopper
+// has no encoded value in this run's graph.encoded_values list (or in the
+// standard OSM tag set surfaced by this GraphHopper version) representing
+// a time-window/convoy control, so no such exemption is encoded here. This
+// model grants NO exemption beyond car_access; it enforces road_access,
+// max_height, and max_weight exactly like light_goods. Physical clearance,
+// structural weight limits, confirmed construction closures, and
+// planned/unopened roads apply identically to every profile in this audit
+// (see tests/path_b/routing/test_hard_constraint_audit.py for the synthetic
+// fixture proof of that invariant).
+//
+// M0 SECOND correction (consistency extension of the rigid_truck fix):
+// max_weight_except no longer bypasses an active max_weight restriction
+// below this profile's own limit, for the same no-authorization-input
+// reason as rigid_truck.json and light_goods.json.
+//
+// to use this custom model: graph.encoded_values: car_access, road_access,
+// max_height, max_weight, max_weight_except, car_average_speed
+
+{
+  "distance_influence": 30,
+  "priority": [
+    { "if": "!car_access", "multiply_by": "0" },
+    { "if": "road_access == PRIVATE || road_access == NO", "multiply_by": "0" },
+    { "if": "max_height < 3.0", "multiply_by": "0" },
+    { "if": "max_weight < 7.5", "multiply_by": "0" }
+  ],
+  "speed": [
+    { "if": "true", "limit_to": "car_average_speed" }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "case_id": "direction_restriction",
+  "label": "replay_fixture",
+  "description": "band_5_maibang_harangajao_balachera_hill is forward_only in this fixture (documented convoy/time-window control). A reverse-direction request must be excluded on direction grounds even though the same band has high landslide susceptibility risk context, proving risk alone does not create or remove a hard exclusion.",
+  "requests": [
+    {
+      "route_id": "route_nh27_primary",
+      "vehicle_profile": "rigid_truck",
+      "direction": "forward",
+      "bands_in_scope": ["band_5_maibang_harangajao_balachera_hill"],
+      "hard_excluded_band_ids": []
+    },
+    {
+      "route_id": "route_nh27_primary",
+      "vehicle_profile": "rigid_truck",
+      "direction": "reverse",
+      "bands_in_scope": ["band_5_maibang_harangajao_balachera_hill"],
+      "hard_excluded_band_ids": []
+    }
+  ],
+  "expected": [
+    {
+      "direction": "forward",
+      "route_feasible": true,
+      "excluded_bands": []
+    },
+    {
+      "direction": "reverse",
+      "route_feasible": false,
+      "excluded_bands": [
+        {"band_id": "band_5_maibang_harangajao_balachera_hill", "reason_code": "direction_not_permitted"}
+      ]
+    }
+  ],
+  "acceptance_note": "The forward-direction case is feasible despite landslide_susceptibility=high on the same band, demonstrating ARCHITECTURE.md D-007: a risk score cannot create a hard exclusion."
+}

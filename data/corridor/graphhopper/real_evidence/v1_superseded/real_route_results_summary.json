@@ -1,0 +1,131 @@
+{
+  "nh27_car": {
+    "distance_m": 298612,
+    "time_s": 15908,
+    "path_details_segment_value_counts": {
+      "road_environment": {
+        "road": 39,
+        "bridge": 37,
+        "tunnel": 1
+      },
+      "road_access": {
+        "yes": 1
+      },
+      "road_class": {
+        "service": 1,
+        "residential": 8,
+        "tertiary": 3,
+        "secondary": 3,
+        "primary": 2,
+        "trunk": 7,
+        "unclassified": 2
+      },
+      "hgv": {
+        "missing": 1
+      },
+      "max_height": {
+        "None": 1
+      },
+      "max_weight": {
+        "None": 1
+      }
+    }
+  },
+  "nh27_truck": {
+    "distance_m": 302454,
+    "time_s": 17557,
+    "path_details_segment_value_counts": {
+      "road_environment": {
+        "road": 40,
+        "bridge": 38,
+        "tunnel": 1
+      },
+      "road_access": {
+        "yes": 1
+      },
+      "road_class": {
+        "service": 1,
+        "unclassified": 1,
+        "residential": 3,
+        "secondary": 1,
+        "primary": 2,
+        "trunk": 3
+      },
+      "hgv": {
+        "missing": 1
+      },
+      "max_height": {
+        "None": 1
+      },
+      "max_weight": {
+        "None": 1
+      }
+    }
+  },
+  "nh6_car": {
+    "distance_m": 307313,
+    "time_s": 16668,
+    "path_details_segment_value_counts": {
+      "road_environment": {
+        "road": 41,
+        "bridge": 36,
+        "tunnel": 1,
+        "ford": 1
+      },
+      "road_access": {
+        "yes": 3
+      },
+      "road_class": {
+        "service": 1,
+        "residential": 13,
+        "tertiary": 10,
+        "secondary": 4,
+        "primary": 3,
+        "trunk": 9,
+        "unclassified": 2
+      },
+      "hgv": {
+        "missing": 3
+      },
+      "max_height": {
+        "None": 3
+      },
+      "max_weight": {
+        "None": 3
+      }
+    }
+  },
+  "nh6_truck": {
+    "distance_m": 309412,
+    "time_s": 18417,
+    "path_details_segment_value_counts": {
+      "road_environment": {
+        "road": 42,
+        "bridge": 37,
+        "tunnel": 1,
+        "ford": 1
+      },
+      "road_access": {
+        "yes": 3
+      },
+      "road_class": {
+        "service": 1,
+        "unclassified": 3,
+        "residential": 8,
+        "secondary": 2,
+        "primary": 3,
+        "trunk": 6,
+        "tertiary": 8
+      },
+      "hgv": {
+        "missing": 3
+      },
+      "max_height": {
+        "None": 3
+      },
+      "max_weight": {
+        "None": 3
+      }
+    }
+  }
+}

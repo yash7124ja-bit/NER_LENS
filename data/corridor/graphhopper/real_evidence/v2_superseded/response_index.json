@@ -1,0 +1,107 @@
+{
+  "info_response": {
+    "file": "raw_info.json",
+    "sha256": "109b3a30745692ce57a1550bdc7eb58f1c67307a64221335c58c8e4fc3e5d637"
+  },
+  "queries": [
+    {
+      "query_id": "nh27_light_goods",
+      "route_id": "route_nh27_primary",
+      "canonical_id": "guwahati_silchar_nh27",
+      "profile": "light_goods",
+      "points": [
+        "26.1445,91.7362",
+        "24.8333,92.7789"
+      ],
+      "via_points": [],
+      "sha256": "809ffeade5fd5fd1aa781fa02cf96553823c44454b2f38602837d5bb452effe9",
+      "http_status": 200,
+      "response_file": "nh27_light_goods.json"
+    },
+    {
+      "query_id": "nh27_rigid_truck",
+      "route_id": "route_nh27_primary",
+      "canonical_id": "guwahati_silchar_nh27",
+      "profile": "rigid_truck",
+      "points": [
+        "26.1445,91.7362",
+        "24.8333,92.7789"
+      ],
+      "via_points": [],
+      "sha256": "ef4d05339187541021190388b1acb61613c8bfb037cf34e130ddb6a8e639e114",
+      "http_status": 200,
+      "response_file": "nh27_rigid_truck.json"
+    },
+    {
+      "query_id": "nh27_emergency",
+      "route_id": "route_nh27_primary",
+      "canonical_id": "guwahati_silchar_nh27",
+      "profile": "emergency",
+      "points": [
+        "26.1445,91.7362",
+        "24.8333,92.7789"
+      ],
+      "via_points": [],
+      "sha256": "6d64c3aef11d562f44d7d48606cea85bc75094e5cf88f468220aa67b28f975bf",
+      "http_status": 200,
+      "response_file": "nh27_emergency.json"
+    },
+    {
+      "query_id": "nh6_light_goods",
+      "route_id": "route_nh6_alternative",
+      "canonical_id": "guwahati_silchar_nh6",
+      "profile": "light_goods",
+      "points": [
+        "26.1445,91.7362",
+        "25.5788,91.8933",
+        "25.4340,92.1935",
+        "24.8333,92.7789"
+      ],
+      "via_points": [
+        "25.5788,91.8933 (Shillong)",
+        "25.4340,92.1935 (Jowai)"
+      ],
+      "sha256": "35756859c2668a3ede7d0452c2e498e243a2b1b5b7b9576846813b4e745d2575",
+      "http_status": 200,
+      "response_file": "nh6_light_goods.json"
+    },
+    {
+      "query_id": "nh6_rigid_truck",
+      "route_id": "route_nh6_alternative",
+      "canonical_id": "guwahati_silchar_nh6",
+      "profile": "rigid_truck",
+      "points": [
+        "26.1445,91.7362",
+        "25.5788,91.8933",
+        "25.4340,92.1935",
+        "24.8333,92.7789"
+      ],
+      "via_points": [
+        "25.5788,91.8933 (Shillong)",
+        "25.4340,92.1935 (Jowai)"
+      ],
+      "sha256": "b5af4ca07646952fd7e6c552ba2feab68c4e7e7cc24f7e05368abaacd11795b2",
+      "http_status": 200,
+      "response_file": "nh6_rigid_truck.json"
+    },
+    {
+      "query_id": "nh6_emergency",
+      "route_id": "route_nh6_alternative",
+      "canonical_id": "guwahati_silchar_nh6",
+      "profile": "emergency",
+      "points": [
+        "26.1445,91.7362",
+        "25.5788,91.8933",
+        "25.4340,92.1935",
+        "24.8333,92.7789"
+      ],
+      "via_points": [
+        "25.5788,91.8933 (Shillong)",
+        "25.4340,92.1935 (Jowai)"
+      ],
+      "sha256": "5714a1d82af9e5c0b1ad785f07541b88c9f7eb2fbc4cfed36612fe382c3dbbc5",
+      "http_status": 200,
+      "response_file": "nh6_emergency.json"
+    }
+  ]
+}

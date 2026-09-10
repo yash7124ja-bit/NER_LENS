@@ -1,0 +1,71 @@
+# Real OSM extract and GraphHopper run provenance — B-M0-01 corrective audit
+#
+# This documents an ACTUAL download and ACTUAL GraphHopper 11.0 import/query
+# run performed in a non-runtime, non-repo scratch sandbox
+# (D:/SIH-2026/.m0-graph-sandbox/, outside the NER_LENS repository and
+# outside this worktree) as evidence gathering for B-M0-01. No PBF, jar, or
+# generated GraphHopper cache is committed to the repository; only this
+# manifest, the config/custom-model files used, and a bounded results
+# summary are committed.
+
+osm_extract:
+  source_url: "https://download.geofabrik.de/asia/india/north-eastern-zone-260909.osm.pbf"
+  resolved_from: "https://download.geofabrik.de/asia/india/north-eastern-zone-latest.osm.pbf (302 redirect target on 2026-09-10)"
+  publisher: "Geofabrik GmbH, OpenStreetMap contributors"
+  licence: "Open Database License (ODbL) 1.0, attribution required, per https://www.openstreetmap.org/copyright"
+  retrieved_at_utc: "2026-09-10T04:36:50Z (HTTP Date header) / download completed by 2026-09-10T04:08 local (see retrieval_started.txt/retrieval_finished.txt in the scratch sandbox)"
+  osm_data_as_of: "2026-09-09T20:21:20Z"  # from the Geofabrik north-eastern-zone.html page and confirmed by GraphHopper /info data_date field
+  byte_size: 109305518
+  md5: "eee3d24fe21d7be1d1b4f01603979273"   # published by Geofabrik at north-eastern-zone-latest.osm.pbf.md5; verified to match the downloaded file
+  sha256: "9250938dd6e8c61ad3ca533620a86c5d286e86f60c2bc45086e173f2ace068a9"  # computed locally; Geofabrik does not publish sha256
+  bbox_confirmed_by_graphhopper: [87.967972, 21.738713, 97.329353, 29.452746]
+
+graphhopper:
+  version: "11.0"
+  release_source: "https://github.com/graphhopper/graphhopper/releases/download/11.0/graphhopper-web-11.0.jar (official GitHub release, not a third-party Docker image)"
+  jar_byte_size: 47346509
+  jar_sha256: "b59c024afe172ec6ec85b6327006c3138ec58c7d0bcd26253d0e42853f613def"
+  runtime: "eclipse-temurin:21-jre-jammy (official Docker image), java -Xmx3g -jar graphhopper-web-11.0.jar server config.yml"
+  custom_models_source: "https://raw.githubusercontent.com/graphhopper/graphhopper/11.0/core/src/main/resources/com/graphhopper/custom_models/{car,truck}.json (official, unmodified except filename rename to avoid a built-in-name collision: car.json -> my_car.json, truck.json -> my_truck.json)"
+  import_completed_at: "2026-09-10T04:43:53Z (GraphHopper /info import_date)"
+  encoded_values_confirmed_present: ["road_access","car_access","car_average_speed","hgv","max_width","max_height","max_weight","max_weight_except","road_class","road_environment"]
+  profiles_configured:
+    - name: car
+      role: "proxy for light_goods and emergency profiles in this real-run attempt (see honest_limitation)"
+      custom_model: my_car.json (official)
+      preparation: CH (contraction hierarchies)
+    - name: truck
+      role: "proxy for rigid_truck"
+      custom_model: my_truck.json (official; enforces hgv==NO exclusion, max_width<3 or max_height<4 exclusion, max_weight<18 exclusion unless max_weight_except)
+      preparation: LM (landmarks); queried with ch.disable=true
+
+honest_limitation: >
+  The official example custom models only ship a generic "car" and "truck"
+  model. No separate official example encodes the project's light_goods
+  (max_weight 3.5t / max_height 2.5m) or emergency (max_weight 7.5t /
+  max_height 3.0m) numeric limits distinct from "truck" (18t / 4m per the
+  official truck.json's hard-coded thresholds). Authoring project-specific
+  custom_model JSON for light_goods/emergency with the exact vehicle_profiles.yaml
+  numbers is real, bounded follow-on work for B-M1-02, not fabricated here.
+  This run therefore evidences the car and truck profiles only, which is
+  sufficient to prove GraphHopper import/query/hard-constraint mechanics work
+  against the real corridor extract.
+
+queries_run:
+  - id: nh27_car
+    points: ["26.1445,91.7362", "24.8333,92.7789"]
+    profile: car
+  - id: nh27_truck
+    points: ["26.1445,91.7362", "24.8333,92.7789"]
+    profile: truck
+    extra_params: {ch.disable: true}
+  - id: nh6_car
+    points: ["26.1445,91.7362", "25.5788,91.8933", "25.4340,92.1935", "24.8333,92.7789"]
+    profile: car
+    note: "via-points at Shillong and Jowai bias the route onto the NH-6 hypothesis; GraphHopper does not have a 'named highway' query mode"
+  - id: nh6_truck
+    points: ["26.1445,91.7362", "25.5788,91.8933", "25.4340,92.1935", "24.8333,92.7789"]
+    profile: truck
+    extra_params: {ch.disable: true}
+
+result: "All four queries returned HTTP 200 with a routable path. See real_route_results_summary.json for distance/time/path-detail evidence."

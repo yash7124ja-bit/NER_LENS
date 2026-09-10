@@ -1,0 +1,37 @@
+// Project-specific custom model for "rigid_truck" -- M0 SECOND safety
+// correction. The prior version (v2) had two defects Terra's routing
+// verdict named:
+//   1. hgv == DELIVERY / hgv == DESTINATION / road_access == PRIVATE were
+//      only a 0.1x speed PENALTY (priority multiply_by "0.1"), not a hard
+//      exclusion. A rigid truck has no standing legal permission to use a
+//      delivery-only, destination-only, or private way; a penalty still
+//      lets the router pick it when nothing shorter exists. These three
+//      conditions are now hard-excluded (multiply_by "0"), same as hgv==NO.
+//   2. max_weight_except previously bypassed an active max_weight
+//      restriction below this profile's 16t limit whenever the tag was
+//      present. No authorization-backed applicability input exists in M0
+//      to decide whether THIS truck/mission actually qualifies for a given
+//      max_weight_except grant, so the exception is never consulted: any
+//      max_weight below 16t excludes the segment regardless of
+//      max_weight_except.
+//
+// to use this custom model: graph.encoded_values: road_access, car_access,
+// hgv, max_width, max_height, car_average_speed, max_weight, max_weight_except
+// (max_weight_except stays enabled at the graph level for visibility/
+// possible future authorized use; this profile's priority rules never read
+// it.)
+
+{
+  "distance_influence": 1,
+  "priority": [
+    { "if": "!car_access", "multiply_by": "0" },
+    { "if": "hgv == NO || hgv == DELIVERY || hgv == DESTINATION", "multiply_by": "0" },
+    { "if": "road_access == PRIVATE", "multiply_by": "0" },
+    { "if": "max_width < 3 || max_height < 3.8", "multiply_by": "0" },
+    { "if": "max_weight < 16", "multiply_by": "0" }
+  ],
+  "speed": [
+    { "if": "true", "limit_to": "car_average_speed * 0.9" },
+    { "if": "true", "limit_to": "95" }
+  ]
+}

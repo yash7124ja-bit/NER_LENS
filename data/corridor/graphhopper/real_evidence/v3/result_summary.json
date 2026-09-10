@@ -1,0 +1,1083 @@
+{
+  "nh27_control_direct_emergency": {
+    "distance_m": 299827.67,
+    "hgv_distance_m": {
+      "missing": 299827.3244040818
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 8383,
+    "road_access_distance_m": {
+      "yes": 299827.3244040818
+    },
+    "road_environment_distance_m": {
+      "bridge": 3759.4417979924333,
+      "road": 296062.20981937874,
+      "tunnel": 5.672786710652872
+    },
+    "sha256": "a1ba2b5effa0acfc35b875c7e615b51d74e41b5b9cab55b9cc9b23a1f7fe1d62",
+    "street_names_in_order_first_seen": [
+      "Lokhra-Lalganesh Road",
+      "Lal Ganesh Road",
+      "Kahilipara Road",
+      "Zoo road",
+      "Radha Gobinda Baruah Road",
+      "Mahapurush Srimanta Sankardeva Path",
+      "Dispur Flyover",
+      "Shillong Bypass"
+    ],
+    "street_ref_distance_m": {
+      "NH27": 6298.6581848593705,
+      "NH37": 338.31060484657064,
+      "NH6": 200211.44745244665,
+      "SH38": 31.048613862483762,
+      "SH38, SH-023": 28325.30010550568,
+      "null": 64622.559442561054
+    },
+    "time_s": 15831.162,
+    "warnings": {
+      "visited_nodes.average": 120.0,
+      "visited_nodes.sum": 120
+    }
+  },
+  "nh27_control_direct_light_goods": {
+    "distance_m": 298611.783,
+    "hgv_distance_m": {
+      "missing": 298611.80694979534
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 8366,
+    "road_access_distance_m": {
+      "yes": 298611.80694979534
+    },
+    "road_environment_distance_m": {
+      "bridge": 3733.1371561537917,
+      "road": 294872.9970069309,
+      "tunnel": 5.672786710652872
+    },
+    "sha256": "ee191e05adb93e5c07fae3b5c3417c81a897a0f4fc4abccdfce2ead606e9b0d2",
+    "street_names_in_order_first_seen": [
+      "Barsapara Road",
+      "Lokhra-Lalganesh Road",
+      "Kahilipara Road",
+      "Zoo road",
+      "Radha Gobinda Baruah Road",
+      "Mahapurush Srimanta Sankardeva Path",
+      "Dispur Flyover",
+      "Shillong Bypass"
+    ],
+    "street_ref_distance_m": {
+      "NH27": 6298.658184859376,
+      "NH37": 27.33914554846706,
+      "NH6": 199823.30643696975,
+      "SH38, SH-023": 28122.25054806046,
+      "null": 64340.252634357275
+    },
+    "time_s": 15907.66,
+    "warnings": {
+      "visited_nodes.average": 125.0,
+      "visited_nodes.sum": 125
+    }
+  },
+  "nh27_control_direct_rigid_truck": {
+    "distance_m": 302453.648,
+    "hgv_distance_m": {
+      "missing": 302453.1557064924
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 8357,
+    "road_access_distance_m": {
+      "yes": 302453.1557064924
+    },
+    "road_environment_distance_m": {
+      "bridge": 3759.4417979924333,
+      "road": 298688.0411217893,
+      "tunnel": 5.672786710652872
+    },
+    "sha256": "c01ec2ba87de666c520fac03da42bd5da19941cfdb4fbe829d460362a8c6be99",
+    "street_names_in_order_first_seen": [
+      "Lokhra-Lalganesh Road",
+      "Lal Ganesh Road",
+      "Kahilipara Road",
+      "Zoo road",
+      "Radha Gobinda Baruah Road",
+      "Mahapurush Srimanta Sankardeva Path",
+      "Dispur Flyover",
+      "Shillong Bypass"
+    ],
+    "street_ref_distance_m": {
+      "NH27": 6298.6581848593705,
+      "NH37": 338.31060484657064,
+      "NH6": 207178.086964369,
+      "SH38": 31.048613862483762,
+      "SH38, SH-023": 28325.30010550568,
+      "null": 60281.75123304934
+    },
+    "time_s": 17556.615,
+    "warnings": {
+      "visited_nodes.average": 565.0,
+      "visited_nodes.sum": 565
+    }
+  },
+  "nh27_leg1_band1_jalukbari_nagaon_emergency": {
+    "distance_m": 114605.934,
+    "hgv_distance_m": {
+      "missing": 114605.69547705408
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 1406,
+    "road_access_distance_m": {
+      "yes": 114605.69547705408
+    },
+    "road_environment_distance_m": {
+      "bridge": 3062.349589886319,
+      "road": 111543.34588716776
+    },
+    "sha256": "073b3e93382b0c4326268adfa63844b8a3ffb60fd171b57bb63453fb1306e032",
+    "street_names_in_order_first_seen": [
+      "Lokhra-Lalganesh Road",
+      "Lal Ganesh Road",
+      "Kahilipara Road",
+      "Zoo road",
+      "Radha Gobinda Baruah Road",
+      "Mahapurush Srimanta Sankardeva Path",
+      "Dispur Flyover"
+    ],
+    "street_ref_distance_m": {
+      "NH27": 42699.385066882794,
+      "NH715A": 19659.447797178123,
+      "SH3": 35961.71990332809,
+      "SH47": 70.39068846800365,
+      "null": 16214.752021197062
+    },
+    "time_s": 6175.125,
+    "warnings": {
+      "visited_nodes.average": 132.0,
+      "visited_nodes.sum": 132
+    }
+  },
+  "nh27_leg1_band1_jalukbari_nagaon_light_goods": {
+    "distance_m": 114030.996,
+    "hgv_distance_m": {
+      "missing": 114031.02156579187
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 1393,
+    "road_access_distance_m": {
+      "yes": 114031.02156579187
+    },
+    "road_environment_distance_m": {
+      "bridge": 3036.0449480476773,
+      "road": 110994.97661774419
+    },
+    "sha256": "346bcd08fdc480e56c43c5053c4f34eef9983915d6483f4de7df68bbbf108c1a",
+    "street_names_in_order_first_seen": [
+      "Barsapara Road",
+      "Lokhra-Lalganesh Road",
+      "Kahilipara Road",
+      "Zoo road",
+      "Radha Gobinda Baruah Road",
+      "Mahapurush Srimanta Sankardeva Path",
+      "Dispur Flyover"
+    ],
+    "street_ref_distance_m": {
+      "NH27": 42699.38506688281,
+      "NH715A": 19659.447797178123,
+      "SH3": 35961.71990332809,
+      "SH47": 70.39068846800365,
+      "null": 15640.078109934848
+    },
+    "time_s": 6216.759,
+    "warnings": {
+      "visited_nodes.average": 130.0,
+      "visited_nodes.sum": 130
+    }
+  },
+  "nh27_leg1_band1_jalukbari_nagaon_rigid_truck": {
+    "distance_m": 114605.934,
+    "hgv_distance_m": {
+      "missing": 114605.69547705408
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 1406,
+    "road_access_distance_m": {
+      "yes": 114605.69547705408
+    },
+    "road_environment_distance_m": {
+      "bridge": 3062.349589886319,
+      "road": 111543.34588716776
+    },
+    "sha256": "cbe5e477c8ac4659642609f758383db208c663ac154e1e5e0a0ab9d1ce1ca08b",
+    "street_names_in_order_first_seen": [
+      "Lokhra-Lalganesh Road",
+      "Lal Ganesh Road",
+      "Kahilipara Road",
+      "Zoo road",
+      "Radha Gobinda Baruah Road",
+      "Mahapurush Srimanta Sankardeva Path",
+      "Dispur Flyover"
+    ],
+    "street_ref_distance_m": {
+      "NH27": 42699.385066882794,
+      "NH715A": 19659.447797178123,
+      "SH3": 35961.71990332809,
+      "SH47": 70.39068846800365,
+      "null": 16214.752021197062
+    },
+    "time_s": 6861.252,
+    "warnings": {
+      "visited_nodes.average": 701.0,
+      "visited_nodes.sum": 701
+    }
+  },
+  "nh27_leg2_band2_nagaon_doboka_emergency": {
+    "distance_m": 40830.108,
+    "hgv_distance_m": {
+      "missing": 40830.08284007838
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 418,
+    "road_access_distance_m": {
+      "yes": 40830.08284007838
+    },
+    "road_environment_distance_m": {
+      "bridge": 1770.8859294476379,
+      "road": 39059.196910630744
+    },
+    "sha256": "9883265f4155c8395f062df39172054fdd639f6c1a28425f99aa8dd00b2825e9",
+    "street_names_in_order_first_seen": [],
+    "street_ref_distance_m": {
+      "NH27": 32527.35799524436,
+      "NH29": 2929.2789166306757,
+      "null": 5373.44592820334
+    },
+    "time_s": 2117.063,
+    "warnings": {
+      "visited_nodes.average": 64.0,
+      "visited_nodes.sum": 64
+    }
+  },
+  "nh27_leg2_band2_nagaon_doboka_light_goods": {
+    "distance_m": 40830.108,
+    "hgv_distance_m": {
+      "missing": 40830.08284007838
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 418,
+    "road_access_distance_m": {
+      "yes": 40830.08284007838
+    },
+    "road_environment_distance_m": {
+      "bridge": 1770.8859294476379,
+      "road": 39059.196910630744
+    },
+    "sha256": "d63691b76c81df18a662240f59b40e55524bb4818b3a85317a7e647a8cb9e982",
+    "street_names_in_order_first_seen": [],
+    "street_ref_distance_m": {
+      "NH27": 32527.35799524436,
+      "NH29": 2929.2789166306757,
+      "null": 5373.44592820334
+    },
+    "time_s": 2117.063,
+    "warnings": {
+      "visited_nodes.average": 80.0,
+      "visited_nodes.sum": 80
+    }
+  },
+  "nh27_leg2_band2_nagaon_doboka_rigid_truck": {
+    "distance_m": 40830.108,
+    "hgv_distance_m": {
+      "missing": 40830.08284007838
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 418,
+    "road_access_distance_m": {
+      "yes": 40830.08284007838
+    },
+    "road_environment_distance_m": {
+      "bridge": 1770.8859294476379,
+      "road": 39059.196910630744
+    },
+    "sha256": "f7ecc637b1e4ecb9bf49108ced8bdba1477f5f6ada1b6743426af712941ccaf0",
+    "street_names_in_order_first_seen": [],
+    "street_ref_distance_m": {
+      "NH27": 32527.35799524436,
+      "NH29": 2929.2789166306757,
+      "null": 5373.44592820334
+    },
+    "time_s": 2352.302,
+    "warnings": {
+      "visited_nodes.average": 385.0,
+      "visited_nodes.sum": 385
+    }
+  },
+  "nh27_leg3_band3_doboka_lanka_lumding_emergency": {
+    "distance_m": 62194.971,
+    "hgv_distance_m": {
+      "missing": 62194.862152321184
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 698,
+    "road_access_distance_m": {
+      "yes": 62194.862152321184
+    },
+    "road_environment_distance_m": {
+      "bridge": 1040.9527611583308,
+      "road": 61153.90939116285
+    },
+    "sha256": "fb8e7b5b7266f7e3ffd4f4167046ac1f6b85b15d6344da50f1dba68f5067f11a",
+    "street_names_in_order_first_seen": [],
+    "street_ref_distance_m": {
+      "NH27": 52959.6086458829,
+      "NH29": 2925.824470525261,
+      "NH329": 843.9276403111508,
+      "null": 5465.50139560187
+    },
+    "time_s": 3274.269,
+    "warnings": {
+      "visited_nodes.average": 58.0,
+      "visited_nodes.sum": 58
+    }
+  },
+  "nh27_leg3_band3_doboka_lanka_lumding_light_goods": {
+    "distance_m": 62194.971,
+    "hgv_distance_m": {
+      "missing": 62194.862152321184
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 698,
+    "road_access_distance_m": {
+      "yes": 62194.862152321184
+    },
+    "road_environment_distance_m": {
+      "bridge": 1040.9527611583308,
+      "road": 61153.90939116285
+    },
+    "sha256": "fdac24bd1606db0c1bda131839254418effb250b42615143f37d69ef123c0806",
+    "street_names_in_order_first_seen": [],
+    "street_ref_distance_m": {
+      "NH27": 52959.6086458829,
+      "NH29": 2925.824470525261,
+      "NH329": 843.9276403111508,
+      "null": 5465.50139560187
+    },
+    "time_s": 3274.269,
+    "warnings": {
+      "visited_nodes.average": 60.0,
+      "visited_nodes.sum": 60
+    }
+  },
+  "nh27_leg3_band3_doboka_lanka_lumding_rigid_truck": {
+    "distance_m": 62194.971,
+    "hgv_distance_m": {
+      "missing": 62194.862152321184
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 698,
+    "road_access_distance_m": {
+      "yes": 62194.862152321184
+    },
+    "road_environment_distance_m": {
+      "bridge": 1040.9527611583308,
+      "road": 61153.90939116285
+    },
+    "sha256": "b728b6783f9ce8f2e1bf6dffe0134709df25d07d5d754fb4ce30b8284575b234",
+    "street_names_in_order_first_seen": [],
+    "street_ref_distance_m": {
+      "NH27": 52959.6086458829,
+      "NH29": 2925.824470525261,
+      "NH329": 843.9276403111508,
+      "null": 5465.50139560187
+    },
+    "time_s": 3638.083,
+    "warnings": {
+      "visited_nodes.average": 127.0,
+      "visited_nodes.sum": 127
+    }
+  },
+  "nh27_leg4_band4_lumding_maibang_emergency": {
+    "distance_m": 98379.622,
+    "hgv_distance_m": {
+      "missing": 98379.48337852056
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 2115,
+    "road_access_distance_m": {
+      "yes": 98379.48337852056
+    },
+    "road_environment_distance_m": {
+      "bridge": 977.0036680213339,
+      "road": 97402.47971049923
+    },
+    "sha256": "4f7ba88f9c452b381420494ea3d3714a76a0ed31bd5686d4a4d39ad5fb67c230",
+    "street_names_in_order_first_seen": [],
+    "street_ref_distance_m": {
+      "NH27": 63254.435164850234,
+      "Nc-M-1": 33027.806494792065,
+      "null": 2097.2417188782574
+    },
+    "time_s": 5383.53,
+    "warnings": {
+      "visited_nodes.average": 64.0,
+      "visited_nodes.sum": 64
+    }
+  },
+  "nh27_leg4_band4_lumding_maibang_light_goods": {
+    "distance_m": 98379.622,
+    "hgv_distance_m": {
+      "missing": 98379.48337852056
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 2115,
+    "road_access_distance_m": {
+      "yes": 98379.48337852056
+    },
+    "road_environment_distance_m": {
+      "bridge": 977.0036680213339,
+      "road": 97402.47971049923
+    },
+    "sha256": "3552a994d0e5ceffc216aae400248702f261b365ca6c44342fe7253d91e3a562",
+    "street_names_in_order_first_seen": [],
+    "street_ref_distance_m": {
+      "NH27": 63254.435164850234,
+      "Nc-M-1": 33027.806494792065,
+      "null": 2097.2417188782574
+    },
+    "time_s": 5383.53,
+    "warnings": {
+      "visited_nodes.average": 84.0,
+      "visited_nodes.sum": 84
+    }
+  },
+  "nh27_leg4_band4_lumding_maibang_rigid_truck": {
+    "distance_m": 98379.622,
+    "hgv_distance_m": {
+      "missing": 98379.48337852056
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 2115,
+    "road_access_distance_m": {
+      "yes": 98379.48337852056
+    },
+    "road_environment_distance_m": {
+      "bridge": 977.0036680213339,
+      "road": 97402.47971049923
+    },
+    "sha256": "f1462c31462b0c7039c5688d69bcc2f6c4019e1fcf656d73b083da426d832cdd",
+    "street_names_in_order_first_seen": [],
+    "street_ref_distance_m": {
+      "NH27": 63254.435164850234,
+      "Nc-M-1": 33027.806494792065,
+      "null": 2097.2417188782574
+    },
+    "time_s": 5981.702,
+    "warnings": {
+      "visited_nodes.average": 111.0,
+      "visited_nodes.sum": 111
+    }
+  },
+  "nh27_leg5_band5_maibang_harangajao_balachera_emergency": {
+    "distance_m": 168772.634,
+    "hgv_distance_m": {
+      "missing": 168772.81059629636
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 4478,
+    "road_access_distance_m": {
+      "yes": 168772.81059629636
+    },
+    "road_environment_distance_m": {
+      "bridge": 2215.1606133684495,
+      "road": 165353.8986736413,
+      "tunnel": 1203.751309286643
+    },
+    "sha256": "c79509030bc203b3e8589f4db570276f2ca31706162c66f6f9ae2b7bf23c2bb7",
+    "street_names_in_order_first_seen": [],
+    "street_ref_distance_m": {
+      "NH-27": 1065.751268816959,
+      "NH27": 114071.55608361561,
+      "Nc-M-1": 33027.806494792145,
+      "SH37, SH-022": 9908.924691387627,
+      "null": 10698.772057684015
+    },
+    "time_s": 9291.417,
+    "warnings": {
+      "visited_nodes.average": 78.0,
+      "visited_nodes.sum": 78
+    }
+  },
+  "nh27_leg5_band5_maibang_harangajao_balachera_light_goods": {
+    "distance_m": 145600.309,
+    "hgv_distance_m": {
+      "missing": 145599.83297727487
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 4678,
+    "road_access_distance_m": {
+      "yes": 145599.83297727487
+    },
+    "road_environment_distance_m": {
+      "bridge": 660.7057054556594,
+      "ford": 0.0,
+      "road": 143853.84872302413,
+      "tunnel": 1085.2785487951041
+    },
+    "sha256": "34de4b737824b3b78ec859d82afb2cd0c8c701bba92573df1667431741644509",
+    "street_names_in_order_first_seen": [
+      "হরিন্গর Road"
+    ],
+    "street_ref_distance_m": {
+      "CA-M-001": 9257.713783707644,
+      "NH137G": 11645.979508045639,
+      "NH27": 26420.21211481133,
+      "Nc-M-1": 33027.806494792145,
+      "SH37": 2695.5217410741825,
+      "SH37, SH-022": 25310.40867205282,
+      "null": 37242.19066279111
+    },
+    "time_s": 11083.927,
+    "warnings": {
+      "visited_nodes.average": 78.0,
+      "visited_nodes.sum": 78
+    }
+  },
+  "nh27_leg5_band5_maibang_harangajao_balachera_rigid_truck": {
+    "distance_m": 168772.634,
+    "hgv_distance_m": {
+      "missing": 168772.81059629636
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 4478,
+    "road_access_distance_m": {
+      "yes": 168772.81059629636
+    },
+    "road_environment_distance_m": {
+      "bridge": 2215.1606133684495,
+      "road": 165353.8986736413,
+      "tunnel": 1203.751309286643
+    },
+    "sha256": "6e53b6629a3bc62cc07a8c8cfd92c14cd1479ee70e866928d0e003d5da7bbbe9",
+    "street_names_in_order_first_seen": [],
+    "street_ref_distance_m": {
+      "NH-27": 1065.751268816959,
+      "NH27": 114071.55608361561,
+      "Nc-M-1": 33027.806494792145,
+      "SH37, SH-022": 9908.924691387627,
+      "null": 10698.772057684015
+    },
+    "time_s": 10323.811,
+    "warnings": {
+      "visited_nodes.average": 225.0,
+      "visited_nodes.sum": 225
+    }
+  },
+  "nh27_leg6_band6_balachera_silchar_emergency": {
+    "distance_m": 27223.777,
+    "hgv_distance_m": {
+      "missing": 27223.801616075365
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 512,
+    "road_access_distance_m": {
+      "yes": 27223.801616075365
+    },
+    "road_environment_distance_m": {
+      "bridge": 1231.0109482056423,
+      "road": 25992.79066786972
+    },
+    "sha256": "967dfb9754e7bf168bd2a48c2f981a967a1b4b5bc98a3f161be763b9aaedf507",
+    "street_names_in_order_first_seen": [
+      "NH53",
+      "Tarapur"
+    ],
+    "street_ref_distance_m": {
+      "NH27": 3559.3162080761176,
+      "NH37": 6389.806434652684,
+      "SH37, SH-022": 13635.2662908186,
+      "null": 3639.412682527963
+    },
+    "time_s": 1688.062,
+    "warnings": {
+      "visited_nodes.average": 56.0,
+      "visited_nodes.sum": 56
+    }
+  },
+  "nh27_leg6_band6_balachera_silchar_light_goods": {
+    "distance_m": 27223.777,
+    "hgv_distance_m": {
+      "missing": 27223.801616075365
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 512,
+    "road_access_distance_m": {
+      "yes": 27223.801616075365
+    },
+    "road_environment_distance_m": {
+      "bridge": 1231.0109482056423,
+      "road": 25992.79066786972
+    },
+    "sha256": "b9fe10452de0e9edb4c3a2b566a006b82e73cc704645347bb7aadcf85fd46303",
+    "street_names_in_order_first_seen": [
+      "NH53",
+      "Tarapur"
+    ],
+    "street_ref_distance_m": {
+      "NH27": 3559.3162080761176,
+      "NH37": 6389.806434652684,
+      "SH37, SH-022": 13635.2662908186,
+      "null": 3639.412682527963
+    },
+    "time_s": 1688.062,
+    "warnings": {
+      "visited_nodes.average": 58.0,
+      "visited_nodes.sum": 58
+    }
+  },
+  "nh27_leg6_band6_balachera_silchar_rigid_truck": {
+    "distance_m": 27223.777,
+    "hgv_distance_m": {
+      "missing": 27223.801616075365
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 512,
+    "road_access_distance_m": {
+      "yes": 27223.801616075365
+    },
+    "road_environment_distance_m": {
+      "bridge": 1231.0109482056423,
+      "road": 25992.79066786972
+    },
+    "sha256": "f479ce885637af40a42049c6603b8f2b25104c3ae88d12cd745d795843bf7ec1",
+    "street_names_in_order_first_seen": [
+      "NH53",
+      "Tarapur"
+    ],
+    "street_ref_distance_m": {
+      "NH27": 3559.3162080761176,
+      "NH37": 6389.806434652684,
+      "SH37, SH-022": 13635.2662908186,
+      "null": 3639.412682527963
+    },
+    "time_s": 1875.628,
+    "warnings": {
+      "visited_nodes.average": 186.0,
+      "visited_nodes.sum": 186
+    }
+  },
+  "nh27_via_bands_emergency": {
+    "distance_m": 512007.046,
+    "hgv_distance_m": {
+      "missing": 512006.73606034653
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 9622,
+    "road_access_distance_m": {
+      "yes": 512006.73606034653
+    },
+    "road_environment_distance_m": {
+      "bridge": 10297.36351008786,
+      "road": 500505.62124097213,
+      "tunnel": 1203.7513092865702
+    },
+    "sha256": "c3a3ccddd2060427d932f28241fcabd8cf4a595eafa4a92cac1d2217d2027409",
+    "street_names_in_order_first_seen": [
+      "Lokhra-Lalganesh Road",
+      "Lal Ganesh Road",
+      "Kahilipara Road",
+      "Zoo road",
+      "Radha Gobinda Baruah Road",
+      "Mahapurush Srimanta Sankardeva Path",
+      "Dispur Flyover",
+      "NH53",
+      "Tarapur"
+    ],
+    "street_ref_distance_m": {
+      "NH-27": 1065.7512688169954,
+      "NH27": 309071.65916455316,
+      "NH29": 5855.103387155919,
+      "NH329": 843.927640311158,
+      "NH37": 6389.806434652535,
+      "NH715A": 19659.447797178123,
+      "Nc-M-1": 66055.61298958422,
+      "SH3": 35961.71990332809,
+      "SH37, SH-022": 23544.1909822062,
+      "SH47": 70.39068846800365,
+      "null": 43489.12580409216
+    },
+    "time_s": 27929.466,
+    "warnings": {
+      "visited_nodes.average": 75.333336,
+      "visited_nodes.sum": 452
+    }
+  },
+  "nh27_via_bands_light_goods": {
+    "distance_m": 488259.783,
+    "hgv_distance_m": {
+      "missing": 488259.08453006484
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 9809,
+    "road_access_distance_m": {
+      "yes": 488259.08453006484
+    },
+    "road_environment_distance_m": {
+      "bridge": 8716.603960336342,
+      "ford": 0.0,
+      "road": 478457.2020209334,
+      "tunnel": 1085.2785487950896
+    },
+    "sha256": "1601c2da506de46d7cef4b9064b065374c905991d573f4b6327c764ac8133c37",
+    "street_names_in_order_first_seen": [
+      "Barsapara Road",
+      "Lokhra-Lalganesh Road",
+      "Kahilipara Road",
+      "Zoo road",
+      "Radha Gobinda Baruah Road",
+      "Mahapurush Srimanta Sankardeva Path",
+      "Dispur Flyover",
+      "হরিন্গর Road",
+      "NH53",
+      "Tarapur"
+    ],
+    "street_ref_distance_m": {
+      "CA-M-001": 9257.713783708052,
+      "NH137G": 11645.979508045479,
+      "NH27": 221420.31519574835,
+      "NH29": 5855.103387155919,
+      "NH329": 843.927640311158,
+      "NH37": 6389.806434652535,
+      "NH715A": 19659.447797178123,
+      "Nc-M-1": 66055.61298958422,
+      "SH3": 35961.71990332809,
+      "SH37": 2695.5217410741607,
+      "SH37, SH-022": 38945.67496287241,
+      "SH47": 70.39068846800365,
+      "null": 69457.87049793833
+    },
+    "time_s": 29763.61,
+    "warnings": {
+      "visited_nodes.average": 81.666664,
+      "visited_nodes.sum": 490
+    }
+  },
+  "nh27_via_bands_rigid_truck": {
+    "distance_m": 512007.046,
+    "hgv_distance_m": {
+      "missing": 512006.73606034653
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 9622,
+    "road_access_distance_m": {
+      "yes": 512006.73606034653
+    },
+    "road_environment_distance_m": {
+      "bridge": 10297.36351008786,
+      "road": 500505.62124097213,
+      "tunnel": 1203.7513092865702
+    },
+    "sha256": "31901135902c8200981e50c3e74c4f61cc81080654ccaf4e68114426e38e078f",
+    "street_names_in_order_first_seen": [
+      "Lokhra-Lalganesh Road",
+      "Lal Ganesh Road",
+      "Kahilipara Road",
+      "Zoo road",
+      "Radha Gobinda Baruah Road",
+      "Mahapurush Srimanta Sankardeva Path",
+      "Dispur Flyover",
+      "NH53",
+      "Tarapur"
+    ],
+    "street_ref_distance_m": {
+      "NH-27": 1065.7512688169954,
+      "NH27": 309071.65916455316,
+      "NH29": 5855.103387155919,
+      "NH329": 843.927640311158,
+      "NH37": 6389.806434652535,
+      "NH715A": 19659.447797178123,
+      "Nc-M-1": 66055.61298958422,
+      "SH3": 35961.71990332809,
+      "SH37, SH-022": 23544.1909822062,
+      "SH47": 70.39068846800365,
+      "null": 43489.12580409216
+    },
+    "time_s": 31032.778,
+    "warnings": {
+      "visited_nodes.average": 289.16666,
+      "visited_nodes.sum": 1735
+    }
+  },
+  "nh6_alternative_emergency": {
+    "distance_m": 308571.877,
+    "hgv_distance_m": {
+      "missing": 308569.7557715797
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 9040,
+    "road_access_distance_m": {
+      "yes": 308569.7557715797
+    },
+    "road_environment_distance_m": {
+      "bridge": 3507.94882812904,
+      "ford": 26.87949564574228,
+      "road": 305019.2746389964,
+      "tunnel": 15.65280880847422
+    },
+    "sha256": "cc032f4c4b4ca39c72472427e83392ffbd7776c502933f892219d43ffd00cd08",
+    "street_names_in_order_first_seen": [
+      "Lokhra-Lalganesh Road",
+      "Lal Ganesh Road",
+      "Kahilipara Road",
+      "Zoo road",
+      "Radha Gobinda Baruah Road",
+      "Mahapurush Srimanta Sankardeva Path",
+      "Dispur Flyover",
+      "Bypass Connector",
+      "Laitumkhrah - New Colony Road",
+      "Laitumkhrah Main Road",
+      "NH6"
+    ],
+    "street_ref_distance_m": {
+      "Bypass Connector": 873.6975963708392,
+      "MDR32": 534.4921125046967,
+      "NH206": 9378.817858731956,
+      "NH27": 6298.6581848593705,
+      "NH37": 338.31060484657064,
+      "NH6": 230923.90374758327,
+      "SH38": 31.048613862483762,
+      "SH38, SH-023": 28325.30010550568,
+      "null": 31865.526947314815
+    },
+    "time_s": 16580.217,
+    "warnings": {
+      "visited_nodes.average": 104.0,
+      "visited_nodes.sum": 312
+    }
+  },
+  "nh6_alternative_light_goods": {
+    "distance_m": 307312.727,
+    "hgv_distance_m": {
+      "missing": 307311.29569380026
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 8978,
+    "road_access_distance_m": {
+      "yes": 307311.29569380026
+    },
+    "road_environment_distance_m": {
+      "bridge": 3481.6441862903985,
+      "ford": 26.87949564574228,
+      "road": 303787.1192030556,
+      "tunnel": 15.65280880847422
+    },
+    "sha256": "573cb0b6c8b27bc03700b6933196ea821d4e6939ff7ce10c2fc246c707f805f7",
+    "street_names_in_order_first_seen": [
+      "Barsapara Road",
+      "Lokhra-Lalganesh Road",
+      "Kahilipara Road",
+      "Zoo road",
+      "Radha Gobinda Baruah Road",
+      "Mahapurush Srimanta Sankardeva Path",
+      "Dispur Flyover",
+      "Bypass Connector",
+      "Laitumkhrah - New Colony Road",
+      "Laitumkhrah Main Road",
+      "NH6"
+    ],
+    "street_ref_distance_m": {
+      "Bypass Connector": 873.6975963708392,
+      "MDR32": 534.4921125046967,
+      "NH206": 9378.817858731956,
+      "NH27": 6298.658184859376,
+      "NH37": 27.33914554846706,
+      "NH6": 230078.91002023788,
+      "SH38, SH-023": 28122.25054806046,
+      "null": 31997.130227486567
+    },
+    "time_s": 16667.586,
+    "warnings": {
+      "visited_nodes.average": 92.333336,
+      "visited_nodes.sum": 277
+    }
+  },
+  "nh6_alternative_rigid_truck": {
+    "distance_m": 309412.03,
+    "hgv_distance_m": {
+      "missing": 309409.90832764906
+    },
+    "max_height_distinct_values": [
+      "None"
+    ],
+    "max_weight_distinct_values": [
+      "None"
+    ],
+    "num_points": 8987,
+    "road_access_distance_m": {
+      "yes": 309409.90832764906
+    },
+    "road_environment_distance_m": {
+      "bridge": 3507.94882812904,
+      "ford": 26.87949564574228,
+      "road": 305859.42719506583,
+      "tunnel": 15.65280880847422
+    },
+    "sha256": "5ddfac5f23113cd392651e50ba04fcd265368477464bba1d73adff27e47c6e06",
+    "street_names_in_order_first_seen": [
+      "Lokhra-Lalganesh Road",
+      "Lal Ganesh Road",
+      "Kahilipara Road",
+      "Zoo road",
+      "Radha Gobinda Baruah Road",
+      "Mahapurush Srimanta Sankardeva Path",
+      "Dispur Flyover",
+      "Bypass Connector",
+      "Laitumkhrah - New Colony Road",
+      "Laitumkhrah Main Road",
+      "NH6"
+    ],
+    "street_ref_distance_m": {
+      "Bypass Connector": 873.6975963708392,
+      "MDR32": 534.4921125046967,
+      "NH206": 9378.817858731956,
+      "NH27": 6298.6581848593705,
+      "NH37": 338.31060484657064,
+      "NH6": 235819.9223160893,
+      "SH38": 31.048613862483762,
+      "SH38, SH-023": 28325.30010550568,
+      "null": 27809.660934878157
+    },
+    "time_s": 18417.43,
+    "warnings": {
+      "visited_nodes.average": 360.66666,
+      "visited_nodes.sum": 1082
+    }
+  }
+}
