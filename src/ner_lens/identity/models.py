@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import ClassVar
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ner_lens.corridor.models import Base
@@ -30,6 +30,20 @@ class Actor(Base):
     external_subject: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     actor_type: Mapped[str] = mapped_column(String(32), nullable=False, default="user")
     active: Mapped[bool] = mapped_column(nullable=False, default=True)
+
+
+class SessionRecord(Base):
+    __tablename__ = "session_record"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    actor_id: Mapped[str] = mapped_column(ForeignKey("actor.id"), nullable=False, index=True)
+    token_issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    def is_valid(self, now: datetime) -> bool:
+        return self.active and self.revoked_at is None and now < self.expires_at
 
 
 class RoleAssignment(Base):
