@@ -123,3 +123,4 @@ def test_health_router_separates_liveness_from_database_readiness():
     assert ready_router.live().status == "live"
     assert check_database_ready(lambda: True).status == "ready"
     assert check_database_ready(lambda: False).status == "not_ready"
+    assert check_database_ready(lambda: False).http_status == 503
