@@ -99,24 +99,23 @@ def test_primary_import_is_idempotent_for_same_graph_version():
         assert session.query(RoadSegment).count() == 6
 
 
-def test_import_quarantines_invalid_geometry_without_creating_a_segment():
+def test_import_rejects_tampered_geometry_without_creating_any_rows():
     factory = build_session_factory(Settings(database_url="sqlite+pysqlite:///:memory:"))
     Base.metadata.create_all(factory.kw["bind"])
     specs = load_primary_band_specs(FIXTURE_PATH)
     specs[0].geometry_endpoints = [[91.0, 26.0], [181.0, 26.1]]
 
-    result = CorridorImportService().import_primary(
-        factory,
-        graph_version="ner-lens-route-audit-fixture-v1",
-        graph_sha256=FIXTURE_SHA256,
-        source_url=FIXTURE_SOURCE_URL,
-        specs=specs,
-    )
-
-    assert result.created is True
-    assert result.quarantined == ["band_1_jalukbari_nagaon"]
+    with pytest.raises(ValueError, match="band specs"):
+        CorridorImportService().import_primary(
+            factory,
+            graph_version="ner-lens-route-audit-fixture-v1",
+            graph_sha256=FIXTURE_SHA256,
+            source_url=FIXTURE_SOURCE_URL,
+            specs=specs,
+        )
     with factory() as session:
-        assert session.query(RoadSegment).count() == 5
+        assert session.query(CorridorVersion).count() == 0
+        assert session.query(RoadSegment).count() == 0
 
 
 def test_import_rejects_unmanifested_checksum_or_source_url():
@@ -146,6 +145,24 @@ def test_stable_ids_include_graph_checksum_for_same_version_inputs():
     first = _stable_id("corridor", "guwahati_silchar_nh27", "v1", "a" * 64)
     second = _stable_id("corridor", "guwahati_silchar_nh27", "v1", "b" * 64)
     assert first != second
+
+
+def test_tampered_band_specs_are_rejected_before_any_write():
+    factory = build_session_factory(Settings(database_url="sqlite+pysqlite:///:memory:"))
+    Base.metadata.create_all(factory.kw["bind"])
+    specs = load_primary_band_specs(FIXTURE_PATH)
+    specs[0].geometry_endpoints[0][0] += 0.01
+    with pytest.raises(ValueError, match="band specs"):
+        CorridorImportService().import_primary(
+            factory,
+            graph_version="ner-lens-route-audit-fixture-v1",
+            graph_sha256=FIXTURE_SHA256,
+            source_url=FIXTURE_SOURCE_URL,
+            specs=specs,
+        )
+    with factory() as session:
+        assert session.query(CorridorVersion).count() == 0
+        assert session.query(RoadSegment).count() == 0
 
 
 def test_active_corridor_and_v3_band_mapping_are_deterministic():

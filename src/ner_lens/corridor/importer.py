@@ -77,6 +77,42 @@ def load_primary_band_specs(path: Path) -> list[BandSpec]:
     ]
 
 
+def _canonical_band_specs(specs: list[BandSpec]) -> str:
+    payload = [
+        {
+            "band_id": spec.band_id,
+            "sequence": spec.sequence,
+            "segment_type": spec.segment_type,
+            "direction": spec.direction,
+            "geometry_endpoints": spec.geometry_endpoints,
+            "restrictions": spec.restrictions,
+            "citations": spec.citations,
+        }
+        for spec in specs
+    ]
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+def _validate_primary_band_specs(specs: list[BandSpec]) -> None:
+    band_ids = tuple(spec.band_id for spec in specs)
+    if len(specs) != len(PRIMARY_BAND_IDS) or band_ids != PRIMARY_BAND_IDS:
+        raise ValueError("band specs must contain exactly six ordered primary bands")
+    if len(set(band_ids)) != len(band_ids):
+        raise ValueError("band specs must contain unique bands")
+
+
+def _resolve_manifest_fixture(manifest: dict[str, Any]) -> Path:
+    data_root = (PROJECT_ROOT / "data").resolve()
+    fixture_path = (PROJECT_ROOT / manifest["fixture_path"]).resolve()
+    try:
+        fixture_path.relative_to(data_root)
+    except ValueError as exc:
+        raise ValueError("fixture path must remain within the repository data boundary") from exc
+    if not fixture_path.is_file():
+        raise ValueError("committed fixture path does not exist")
+    return fixture_path
+
+
 def load_import_manifest(path: Path = DEFAULT_IMPORT_MANIFEST) -> dict[str, Any]:
     manifest = json.loads(path.read_text(encoding="utf-8"))
     recorded_hash = manifest.get("manifest_sha256")
@@ -186,6 +222,14 @@ class CorridorImportService:
             raise ValueError("graph checksum is not in the committed import manifest")
         if source_url != manifest["source_url"]:
             raise ValueError("source URL is not in the committed import manifest")
+        fixture_path = _resolve_manifest_fixture(manifest)
+        if _normalized_file_sha256(fixture_path) != manifest["graph_sha256"]:
+            raise ValueError("fixture checksum does not match the committed graph checksum")
+        verified_specs = load_primary_band_specs(fixture_path)
+        _validate_primary_band_specs(verified_specs)
+        _validate_primary_band_specs(specs)
+        if _canonical_band_specs(specs) != _canonical_band_specs(verified_specs):
+            raise ValueError("band specs do not match the verified fixture")
         validate_v3_band_mapping(
             PROJECT_ROOT / manifest["v3_mapping_path"],
             expected_sha256=manifest["v3_mapping_sha256"],
