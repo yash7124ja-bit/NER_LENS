@@ -1,0 +1,208 @@
+# Real OSM extract and GraphHopper run provenance — B-M0-01 second corrective
+# audit (three exact project vehicle profiles, both route hypotheses).
+#
+# TIMESTAMP METHODOLOGY (correcting the first corrective audit's error):
+# The first run recorded an HTTP response "Date" header (04:36:50Z) as the
+# retrieval time and separately reported a local completion note ("by
+# 2026-09-10T04:08 local"), which conflicted under any IST/UTC interpretation.
+# The root cause: Geofabrik serves this file through a caching proxy (squid);
+# an HTTP "Date" header on a cache HIT reflects when the proxy generated that
+# response, not when THIS download happened, and an "Age" header (seen on the
+# repeat request below: Age: 17387) proves the cached response was itself
+# already ~4.8 hours old. HTTP Date/Last-Modified/Age headers are recorded
+# below for transparency, but they are NOT used as the authoritative
+# retrieval timestamp. The authoritative timestamps in this document are
+# captured independently, immediately before and after each network call, by
+# this session's own shell clock (`date -u`), which is not subject to proxy
+# caching. Both the "before" and "after" wall-clock reading are recorded for
+# every network operation so any timing question is independently checkable.
+
+osm_extract:
+  source_url: "https://download.geofabrik.de/asia/india/north-eastern-zone-260909.osm.pbf"
+  resolved_from: "https://download.geofabrik.de/asia/india/north-eastern-zone-latest.osm.pbf (302 redirect target, unchanged since the first corrective audit)"
+  publisher: "Geofabrik GmbH, OpenStreetMap contributors"
+  licence: "Open Database License (ODbL) 1.0, attribution required, per https://www.openstreetmap.org/copyright"
+  osm_data_as_of: "2026-09-09T20:21:20Z"   # unchanged from the first run; confirmed again via the dated page fetch below and via GraphHopper /info data_date
+  byte_size: 109305518
+  md5: "eee3d24fe21d7be1d1b4f01603979273"          # Geofabrik-published; verified to match both before and after the route run
+  sha256: "9250938dd6e8c61ad3ca533620a86c5d286e86f60c2bc45086e173f2ace068a9"   # computed locally; identical to the first corrective audit's download, confirming no upstream change
+  retrieval_timestamps_utc:
+    local_clock_before_download: "2026-09-10T05:49:57Z"
+    local_clock_after_download: "2026-09-10T05:51:56Z"
+    method: "this session's shell `date -u` immediately before/after the curl download; authoritative"
+  http_response_headers_informational_only:
+    date: "Thu, 10 Sep 2026 01:00:06 GMT"
+    last_modified: "Wed, 09 Sep 2026 22:46:01 GMT"
+    age_seconds: 17387
+    cache_status: "download-proxy13;hit;detail=match"
+    note: "Age=17387s (~4.8h) proves this was a cached proxy response; Date header is NOT the retrieval time. See TIMESTAMP METHODOLOGY above."
+  dated_info_page_fetch:
+    url: "https://download.geofabrik.de/asia/india/north-eastern-zone.html"
+    local_clock_before: "2026-09-10T05:52:18Z"
+    local_clock_after: "2026-09-10T05:52:19Z"
+    http_date_header: "Thu, 10 Sep 2026 05:52:14 GMT"
+    note: "This page fetch had no Age header (fresh response) and its HTTP Date matches the local clock within seconds, unlike the PBF download above. Confirmed 'OSM data up to 2026-09-09T20:21:20Z' text unchanged from the first corrective audit."
+  post_route_run_verification:
+    local_clock: "2026-09-10T05:57:52Z"
+    result: "byte size, MD5, and SHA-256 all identical to pre-run values (see retention record below)"
+
+retention:
+  absolute_path: "D:\\SIH-2026\\NER_LENS_ARTIFACTS\\m0\\north-eastern-zone-260909.osm.pbf"
+  retained_outside_git: true
+  byte_size: 109305518
+  md5: "eee3d24fe21d7be1d1b4f01603979273"
+  sha256: "9250938dd6e8c61ad3ca533620a86c5d286e86f60c2bc45086e173f2ace068a9"
+  source_url: "https://download.geofabrik.de/asia/india/north-eastern-zone-260909.osm.pbf"
+  licence: "ODbL 1.0, OpenStreetMap contributors, attribution required"
+  retrieved_at_utc: "2026-09-10T05:49:57Z to 2026-09-10T05:51:56Z (local shell clock, before/after download)"
+  hash_verified_after_route_run_at_utc: "2026-09-10T05:57:52Z"
+  retention_status: "retained; not committed to git; not a substitute for A-M1-03's operational graph import"
+
+graphhopper:
+  version: "11.0"
+  release_source: "https://github.com/graphhopper/graphhopper/releases/download/11.0/graphhopper-web-11.0.jar (official GitHub release)"
+  jar_byte_size: 47346509
+  jar_sha256: "b59c024afe172ec6ec85b6327006c3138ec58c7d0bcd26253d0e42853f613def"   # identical to the first corrective audit; confirms same official artifact
+  jar_retrieval_timestamps_utc:
+    local_clock_before: "2026-09-10T05:52:32Z"
+    local_clock_after: "2026-09-10T05:52:46Z"
+  runtime: "eclipse-temurin:21-jre-jammy (official Docker image), java -Xmx3g -jar graphhopper-web-11.0.jar server config.yml"
+  container_run_local_clock_utc: "2026-09-10T05:53 (approx, container start)"
+  import_completed_at: "2026-09-10T05:54:07Z"   # from GraphHopper /info import_date
+  server_ready_confirmed_at_utc: "2026-09-10T05:55:11Z"   # from container log "Started Server"
+  info_query_timestamps_utc:
+    local_clock_before: "2026-09-10T05:56:34Z"
+    local_clock_after: "2026-09-10T05:56:34Z"
+  info_response_sha256: "109b3a30745692ce57a1550bdc7eb58f1c67307a64221335c58c8e4fc3e5d637"
+  info_response_file: "raw_info.json"
+  confirmed_data_date: "2026-09-09T20:21:20Z"   # matches osm_extract.osm_data_as_of exactly
+  confirmed_bbox: [87.967972, 21.738713, 97.329353, 29.452746]
+  confirmed_profiles_present: ["light_goods", "rigid_truck", "emergency"]
+
+vehicle_profiles:
+  # Corrective-audit change from the first real run: these are now
+  # PROJECT-SPECIFIC custom models built from
+  # data/corridor/graphhopper/vehicle_profiles.yaml's exact numbers, not the
+  # generic official car.json/truck.json examples. No emergency legal
+  # exemption beyond car_access/road_access is encoded; see emergency.json's
+  # own header comment for the explicit non-invention statement.
+  light_goods:
+    source_file: "light_goods.json (project-authored this session, not an official GraphHopper example)"
+    sha256: "8150673038538df839a917a5c14b5e2abd348730ab127b810fd0921ad6b05574"
+    max_weight_t: 3.5
+    max_height_m: 2.5
+    hgv_exempt: true
+    base_encoded_values_used: ["car_access", "road_access", "max_height", "max_weight", "max_weight_except", "car_average_speed"]
+    preparation: "CH (contraction hierarchies), NODE_BASED"
+  rigid_truck:
+    source_file: "rigid_truck.json (project-authored this session, adapted from GraphHopper's official truck.json example with this project's own 16.0t/3.8m thresholds substituted for the official example's 18t/4m)"
+    sha256: "c84104df548b350d3246a5b7135a2c54b2764c52547331005588672406cd6f94"
+    max_weight_t: 16.0
+    max_height_m: 3.8
+    hgv_exempt: false
+    base_encoded_values_used: ["road_access", "car_access", "hgv", "max_width", "max_height", "car_average_speed", "max_weight", "max_weight_except"]
+    preparation: "CH (contraction hierarchies), EDGE_BASED (turn_costs enabled: vehicle_types [hgv, motorcar, motor_vehicle])"
+  emergency:
+    source_file: "emergency.json (project-authored this session)"
+    sha256: "2ad4bf4524f8e265ea7755933504a6334feb6703571413f59e59420f1c0ec104"
+    max_weight_t: 7.5
+    max_height_m: 3.0
+    hgv_exempt: true
+    base_encoded_values_used: ["car_access", "road_access", "max_height", "max_weight", "max_weight_except", "car_average_speed"]
+    preparation: "CH (contraction hierarchies), NODE_BASED"
+    no_invented_exemption_statement: >
+      vehicle_profiles.yaml documents a POSSIBLE time-window/convoy legal
+      exemption for emergency vehicles. This GraphHopper run's
+      graph.encoded_values list has no encoded value representing a
+      time-window/convoy control (no such OSM tag family is enabled), so no
+      such exemption is encoded in emergency.json. This profile enforces
+      road_access, max_height, and max_weight identically to light_goods,
+      with only its own numeric thresholds substituted. Nothing beyond
+      car_access-level physical/legal enforcement is granted.
+  config_file: "config.yml"
+  config_sha256: "1452e3503c6d892d28e85f1c1b04638d7020c3d474b0283bfdbd470e73d20fe8"
+
+routes_queried:
+  route_nh27_primary:
+    canonical_id: "guwahati_silchar_nh27"
+    request_points: ["26.1445,91.7362", "24.8333,92.7789"]
+    via_points: []
+    note: "Direct origin-to-destination query; no waypoint bias applied. GraphHopper computes its own shortest/fastest path between these two points; corridor identity (NH-27) is inferred from endpoint selection and the six audit bands, not confirmed by an NH27 ref/name tag in the returned path (see honest_limitations)."
+  route_nh6_alternative:
+    canonical_id: "guwahati_silchar_nh6"
+    request_points: ["26.1445,91.7362", "25.5788,91.8933", "25.4340,92.1935", "24.8333,92.7789"]
+    via_points: ["25.5788,91.8933 (Shillong)", "25.4340,92.1935 (Jowai)"]
+    note: "WAYPOINT-BIASED. GraphHopper has no 'named highway' query mode; the Shillong and Jowai via-points force the returned path through those towns, approximating the NH-6 hypothesis. GraphHopper computes its own optimal sub-path between each consecutive waypoint pair, which is not the same as confirming continuity along a single named highway for the whole distance."
+
+queries:
+  - query_id: nh27_light_goods
+    route_id: route_nh27_primary
+    profile: light_goods
+    response_file: raw_responses/nh27_light_goods.json
+    sha256: "809ffeade5fd5fd1aa781fa02cf96553823c44454b2f38602837d5bb452effe9"
+    distance_m: 298612
+    time_s: 15908
+  - query_id: nh27_rigid_truck
+    route_id: route_nh27_primary
+    profile: rigid_truck
+    response_file: raw_responses/nh27_rigid_truck.json
+    sha256: "ef4d05339187541021190388b1acb61613c8bfb037cf34e130ddb6a8e639e114"
+    distance_m: 302454
+    time_s: 17557
+  - query_id: nh27_emergency
+    route_id: route_nh27_primary
+    profile: emergency
+    response_file: raw_responses/nh27_emergency.json
+    sha256: "6d64c3aef11d562f44d7d48606cea85bc75094e5cf88f468220aa67b28f975bf"
+    distance_m: 299828
+    time_s: 15831
+  - query_id: nh6_light_goods
+    route_id: route_nh6_alternative
+    profile: light_goods
+    response_file: raw_responses/nh6_light_goods.json
+    sha256: "35756859c2668a3ede7d0452c2e498e243a2b1b5b7b9576846813b4e745d2575"
+    distance_m: 307313
+    time_s: 16668
+  - query_id: nh6_rigid_truck
+    route_id: route_nh6_alternative
+    profile: rigid_truck
+    response_file: raw_responses/nh6_rigid_truck.json
+    sha256: "b5af4ca07646952fd7e6c552ba2feab68c4e7e7cc24f7e05368abaacd11795b2"
+    distance_m: 309412
+    time_s: 18417
+  - query_id: nh6_emergency
+    route_id: route_nh6_alternative
+    profile: emergency
+    response_file: raw_responses/nh6_emergency.json
+    sha256: "5714a1d82af9e5c0b1ad785f07541b88c9f7eb2fbc4cfed36612fe382c3dbbc5"
+    distance_m: 308572
+    time_s: 16580
+
+all_query_local_clock_timestamps_utc: "2026-09-10T05:56:48Z to 2026-09-10T05:56:49Z (all six queries executed within a 2-second window against the locally running container; see query_timestamps.log)"
+
+result_summary_file: "result_summary.json"
+result_summary_sha256: "7eafd03f5b7be84ee6c9ab6310ad0217fc3bd25f62a1fc4d8044e309f331b97f"
+response_index_file: "response_index.json"
+response_index_sha256: "a9b2c38f00f82042a0041d710fd8c58868a8b42368e91f617088258c337f81ca"
+
+real_findings:
+  both_routes_routable: true
+  all_three_profiles_returned_200_for_both_routes: true
+  hgv_tag_coverage: "missing (unset) along the entire returned path, every profile, every route"
+  max_height_max_weight_tag_coverage: "unset along the entire returned path, every profile, every route"
+  bridges_confirmed: "36-42 bridge segments per route via road_environment=BRIDGE"
+  tunnels_confirmed: "1 tunnel segment per route via road_environment=TUNNEL"
+  ford_confirmed_nh6_only: "1 ford segment on all three NH-6 queries; not present on NH-27 queries"
+  construction_confirmed: false   # no road_class=CONSTRUCTION segment encountered on any returned path
+  warnings_or_errors: "none; all six queries returned HTTP 200 with no 'hints'-reported routing errors (only visited_nodes performance stats)"
+  road_name_evidence:
+    nh27_primary: "No instruction street_name matched 'NH27', 'NH-27', or 'National Highway 27' on any of the three NH-27 queries (8 unique named streets, all local Guwahati-area roads e.g. Zoo Road, Kahilipara Road). Absence is not strong evidence against NH-27 identity: GraphHopper's `instructions[].street_name` reflects the OSM `name` tag, and Indian national-highway ways very often carry only a `ref` tag (e.g. ref=NH27) without a `name` tag, which this API surface does not expose. This audit run did not attempt an OSM ref/way-ID cross-reference (out of the bounded evidence scope declared for this task)."
+    nh6_alternative: "The literal street_name 'NH6' appears in the instructions for all three NH-6 queries, giving direct (though single-segment) OSM-tag evidence that the waypoint-biased path traverses at least one way explicitly named 'NH6' in this OSM extract. This is real evidence, not an assumption, but it confirms only a segment of the route, not full end-to-end NH-6 continuity."
+
+honest_limitations:
+  - "Corridor identity for both routes is established by ORIGIN/DESTINATION/VIA-POINT selection plus the desk-audit band citations (NHAI/NHIDCL/Parliamentary record), not by an automated OSM ref/name match for every edge on the path. NH-6's single 'NH6' name match is stronger direct evidence than NH-27 currently has from this API surface."
+  - "route_nh6_alternative is explicitly waypoint-biased through Shillong and Jowai; GraphHopper does not have a 'follow this named highway' query mode. See routes_queried.route_nh6_alternative.note."
+  - "turn restrictions were not extracted from the real graph; GraphHopper's /route path-details API does not expose turn-cost/turn-restriction tables. This remains synthetic-fixture-only evidence (see docs/decisions/route-audit.md section 3)."
+  - "This is a single run against a single dated extract on 2026-09-10. It does not establish ongoing monitoring, a checksummed OPERATIONAL graph version, or A-M1-03's stable internal segment IDs."
+  - "No route in this document is operationally verified. GraphHopper returning HTTP 200 for a request means the graph and vehicle constraints as encoded permit a path; it is not an authorized operational status, not a confirmed-safe route, and not a substitute for CONTRACTS.md's RouteVerificationPolicy outcome enum (verified/degraded/insufficient_evidence/no_verified_feasible_route), which requires policy thresholds this audit does not have."
+  - "The retained PBF, jar, and generated GraphHopper cache are NOT committed to git. Only this manifest, the raw JSON receipts, config, and custom models are committed. The scratch sandbox that ran the container (D:/SIH-2026/.m0-graph-sandbox2/) is deleted after evidence extraction, per instruction; only the PBF is retained externally at the path recorded above."

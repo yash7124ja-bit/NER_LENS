@@ -57,7 +57,11 @@ def test_graph_file_exists_and_is_labelled_synthetic():
     graph = load_graph()
     assert graph["label"] == "synthetic_replay_fixture"
     assert graph["is_real_osm_extract"] is False
-    assert graph["provenance"]["real_osm_extract_status"] == "not_yet_obtained"
+    # Corrective-audit fix: the fixture's own status must not read as a
+    # global "no real extract exists" claim now that one has been obtained
+    # separately (see data/corridor/graphhopper/real_evidence/v2/).
+    assert graph["provenance"]["real_osm_extract_status"] != "not_yet_obtained"
+    assert "obtained_separately" in graph["provenance"]["real_osm_extract_status"]
 
 
 def test_checksum_matches_recorded_provenance():

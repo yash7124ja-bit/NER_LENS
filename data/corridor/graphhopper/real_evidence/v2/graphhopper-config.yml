@@ -1,0 +1,42 @@
+graphhopper:
+  datareader.file: /data/north-eastern-zone-260909.osm.pbf
+  graph.location: /data/graph-cache
+
+  profiles:
+    - name: light_goods
+      custom_model_files: [light_goods.json]
+    - name: rigid_truck
+      turn_costs:
+        vehicle_types: [hgv, motorcar, motor_vehicle]
+      custom_model_files: [rigid_truck.json]
+    - name: emergency
+      custom_model_files: [emergency.json]
+
+  profiles_ch:
+    - profile: light_goods
+    - profile: rigid_truck
+    - profile: emergency
+  profiles_lm: []
+
+  graph.encoded_values: road_access, car_access, car_average_speed, hgv, max_width, max_height, max_weight, max_weight_except, road_class, road_environment
+
+  graph.dataaccess.default_type: RAM_STORE
+  import.osm.ignored_highways: footway,cycleway,path,steps
+
+server:
+  application_connectors:
+  - type: http
+    port: 8989
+    bind_host: 0.0.0.0
+    max_request_header_size: 50k
+  request_log:
+      appenders: []
+  admin_connectors:
+  - type: http
+    port: 8990
+    bind_host: 0.0.0.0
+logging:
+  appenders:
+    - type: console
+      time_zone: UTC
+      log_format: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
