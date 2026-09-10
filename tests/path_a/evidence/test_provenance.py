@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 
 from ner_lens.config import Settings
 from ner_lens.corridor.models import Base, CorridorVersion, RoadSegment
@@ -36,6 +39,9 @@ def record_snapshot(service: EvidenceService, factory, **overrides):
         "now": NOW,
     }
     values.update(overrides)
+    values["content_sha256"] = hashlib.sha256(
+        json.dumps(values["raw_payload"], sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
     return service.record_snapshot(factory, **values)
 
 
@@ -121,6 +127,18 @@ def test_evidence_retains_raw_value_provenance_and_records_spatial_association()
     )
     assert associated.segment_id == segment_id
     assert associated.association_method == "within_buffer"
+    with factory() as session:
+        stored = session.get(Evidence, evidence.id)
+        stored.raw_value = {"condition": "mutated"}
+        with pytest.raises(ValueError, match="immutable"):
+            session.flush()
+    with factory() as session:
+        with pytest.raises(IntegrityError):
+            session.execute(
+                update(Evidence)
+                .where(Evidence.id == evidence.id)
+                .values(raw_value={"condition": "direct-mutation"})
+            )
 
 
 def test_invalid_or_future_evidence_is_quarantined_and_raw_value_preserved():
@@ -172,3 +190,37 @@ def test_live_mode_is_rejected_and_association_boundary_is_enforced():
             buffer_m=5000,
         )
     assert snapshot.data_mode == "replay"
+
+
+def test_snapshot_hash_is_derived_and_source_hash_is_unique():
+    factory = build_factory()
+    service = EvidenceService()
+    with pytest.raises(ValueError, match="does not match"):
+        service.record_snapshot(
+            factory,
+            source="replay_fixture",
+            source_url="replay://hash",
+            retrieved_at=NOW,
+            source_published_at=NOW,
+            content_sha256="a" * 64,
+            parser_version="fixture-parser-v1",
+            raw_payload={"value": "different"},
+            terms_label="replay",
+            stale_after=timedelta(hours=1),
+            now=NOW,
+        )
+    snapshot = record_snapshot(service, factory, source_url="replay://unique")
+    with pytest.raises(IntegrityError):
+        service.record_snapshot(
+            factory,
+            source="replay_fixture",
+            source_url="replay://other-url",
+            retrieved_at=NOW,
+            source_published_at=NOW,
+            content_sha256=snapshot.content_sha256,
+            parser_version="fixture-parser-v1",
+            raw_payload={"schema_version": "v1", "blocked": True},
+            terms_label="replay-fixture-no-live-terms",
+            stale_after=timedelta(hours=1),
+            now=NOW,
+        )

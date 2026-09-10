@@ -5,7 +5,17 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import ClassVar
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    DDL,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    event,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ner_lens.corridor.models import Base
@@ -77,6 +87,34 @@ class AuditEvent(Base):
     after_hash: Mapped[str | None] = mapped_column(String(64))
     reason: Mapped[str | None] = mapped_column(Text)
     outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+@event.listens_for(AuditEvent, "before_update")
+def _reject_audit_update(_mapper: object, _connection: object, _target: AuditEvent) -> None:
+    raise ValueError("audit events are immutable and append-only")
+
+
+@event.listens_for(AuditEvent, "before_delete")
+def _reject_audit_delete(_mapper: object, _connection: object, _target: AuditEvent) -> None:
+    raise ValueError("audit events are immutable and append-only")
+
+
+event.listen(
+    AuditEvent.__table__,
+    "after_create",
+    DDL(
+        "CREATE TRIGGER guard_audit_event_update BEFORE UPDATE ON audit_event "
+        "BEGIN SELECT RAISE(ABORT, 'append_only_record'); END"
+    ).execute_if(dialect="sqlite"),
+)
+event.listen(
+    AuditEvent.__table__,
+    "after_create",
+    DDL(
+        "CREATE TRIGGER guard_audit_event_delete BEFORE DELETE ON audit_event "
+        "BEGIN SELECT RAISE(ABORT, 'append_only_record'); END"
+    ).execute_if(dialect="sqlite"),
+)
 
 
 class IdempotencyRecord(Base):

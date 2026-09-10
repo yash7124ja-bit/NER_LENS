@@ -29,6 +29,7 @@ def upgrade() -> None:
         sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["evidence_id"], ["evidence.id"]),
         sa.ForeignKeyConstraint(["merge_into_evidence_id"], ["evidence.id"]),
+        sa.ForeignKeyConstraint(["audit_event_id"], ["audit_event.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_evidence_review_evidence_id", "evidence_review", ["evidence_id"])
@@ -40,6 +41,7 @@ def upgrade() -> None:
         sa.Column("request_hash", sa.String(length=64), nullable=False),
         sa.Column("review_id", sa.String(length=36), nullable=False),
         sa.ForeignKeyConstraint(["review_id"], ["evidence_review.id"]),
+        sa.UniqueConstraint("actor_id", "idempotency_key", name="uq_review_idempotency_actor_key"),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(
@@ -61,6 +63,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("audit_event_id", sa.String(length=36), nullable=False),
         sa.ForeignKeyConstraint(["segment_id"], ["road_segment.id"]),
+        sa.ForeignKeyConstraint(["audit_event_id"], ["audit_event.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_status_decision_segment_id", "status_decision", ["segment_id"])
@@ -72,6 +75,7 @@ def upgrade() -> None:
         sa.Column("request_hash", sa.String(length=64), nullable=False),
         sa.Column("status_decision_id", sa.String(length=36), nullable=False),
         sa.ForeignKeyConstraint(["status_decision_id"], ["status_decision.id"]),
+        sa.UniqueConstraint("actor_id", "idempotency_key", name="uq_status_idempotency_actor_key"),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, ClassVar
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, event
+from sqlalchemy import DDL, JSON, DateTime, ForeignKey, String, UniqueConstraint, event
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ner_lens.corridor.models import Base
@@ -13,6 +13,9 @@ from ner_lens.corridor.models import Base
 
 class SourceSnapshot(Base):
     __tablename__ = "source_snapshot"
+    __table_args__ = (
+        UniqueConstraint("source", "content_sha256", name="uq_snapshot_source_sha256"),
+    )
     immutable: ClassVar[bool] = True
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -68,6 +71,36 @@ class Evidence(Base):
     supersedes_evidence_id: Mapped[str | None] = mapped_column(ForeignKey("evidence.id"))
 
 
+@event.listens_for(Evidence, "before_update")
+def _reject_evidence_update(_mapper: Any, _connection: Any, _target: Evidence) -> None:
+    raise ValueError("evidence facts are immutable; record a revision or association")
+
+
+@event.listens_for(Evidence, "before_delete")
+def _reject_evidence_delete(_mapper: Any, _connection: Any, _target: Evidence) -> None:
+    raise ValueError("evidence facts are immutable and append-only")
+
+
+for _table in (SourceSnapshot.__table__, Evidence.__table__):
+    _table_name = _table.name
+    event.listen(
+        _table,
+        "after_create",
+        DDL(
+            f"CREATE TRIGGER guard_{_table_name}_update BEFORE UPDATE ON {_table_name} "
+            "BEGIN SELECT RAISE(ABORT, 'append_only_record'); END"
+        ).execute_if(dialect="sqlite"),
+    )
+    event.listen(
+        _table,
+        "after_create",
+        DDL(
+            f"CREATE TRIGGER guard_{_table_name}_delete BEFORE DELETE ON {_table_name} "
+            "BEGIN SELECT RAISE(ABORT, 'append_only_record'); END"
+        ).execute_if(dialect="sqlite"),
+    )
+
+
 class EvidenceReview(Base):
     __tablename__ = "evidence_review"
 
@@ -82,12 +115,52 @@ class EvidenceReview(Base):
     idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
     before_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     after_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    audit_event_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    audit_event_id: Mapped[str] = mapped_column(ForeignKey("audit_event.id"), nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+@event.listens_for(EvidenceReview, "before_update")
+def _reject_review_update(_mapper: Any, _connection: Any, _target: EvidenceReview) -> None:
+    raise ValueError("evidence reviews are immutable and append-only")
+
+
+@event.listens_for(EvidenceReview, "before_delete")
+def _reject_review_delete(_mapper: Any, _connection: Any, _target: EvidenceReview) -> None:
+    raise ValueError("evidence reviews are immutable and append-only")
+
+
+class EvidenceAssociation(Base):
+    __tablename__ = "evidence_association"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    evidence_id: Mapped[str] = mapped_column(ForeignKey("evidence.id"), nullable=False, index=True)
+    segment_id: Mapped[str] = mapped_column(
+        ForeignKey("road_segment.id"), nullable=False, index=True
+    )
+    method: Mapped[str] = mapped_column(String(32), nullable=False)
+    distance_m: Mapped[float | None] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+@event.listens_for(EvidenceAssociation, "before_update")
+def _reject_association_update(
+    _mapper: Any, _connection: Any, _target: EvidenceAssociation
+) -> None:
+    raise ValueError("evidence associations are immutable and append-only")
+
+
+@event.listens_for(EvidenceAssociation, "before_delete")
+def _reject_association_delete(
+    _mapper: Any, _connection: Any, _target: EvidenceAssociation
+) -> None:
+    raise ValueError("evidence associations are immutable and append-only")
 
 
 class ReviewIdempotency(Base):
     __tablename__ = "review_idempotency"
+    __table_args__ = (
+        UniqueConstraint("actor_id", "idempotency_key", name="uq_review_idempotency_actor_key"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     actor_id: Mapped[str] = mapped_column(String(128), nullable=False)

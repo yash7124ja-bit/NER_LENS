@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String
+from sqlalchemy import JSON, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ner_lens.corridor.models import Base
@@ -30,11 +30,14 @@ class StatusDecision(Base):
     request_id: Mapped[str] = mapped_column(String(128), nullable=False)
     idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    audit_event_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    audit_event_id: Mapped[str] = mapped_column(ForeignKey("audit_event.id"), nullable=False)
 
 
 class StatusIdempotency(Base):
     __tablename__ = "status_idempotency"
+    __table_args__ = (
+        UniqueConstraint("actor_id", "idempotency_key", name="uq_status_idempotency_actor_key"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     actor_id: Mapped[str] = mapped_column(String(128), nullable=False)

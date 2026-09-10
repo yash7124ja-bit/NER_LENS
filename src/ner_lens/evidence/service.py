@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -11,14 +14,40 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ner_lens.corridor.models import RoadSegment
 from ner_lens.db import session_scope
-from ner_lens.evidence.models import Evidence, SourceSnapshot
+from ner_lens.evidence.models import Evidence, EvidenceAssociation, SourceSnapshot
 
 SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 ASSOCIATION_METHODS = frozenset({"segment_intersects", "within_buffer", "manual_review"})
 REPLAY_DATA_MODES = frozenset({"replay", "synthetic"})
+ADMISSIBLE_EVIDENCE_TYPES = frozenset(
+    {
+        "authority_notice",
+        "field_report",
+        "flood_observation",
+        "road_condition",
+        "sensor_observation",
+        "source_observation",
+        "traffic_observation",
+    }
+)
+FORBIDDEN_EVIDENCE_TYPES = frozenset(
+    {"risk", "weather", "model_prediction", "hazard", "hazard_prediction", "ml_prediction"}
+)
+
+
+@dataclass(frozen=True, slots=True)
+class FreshnessPolicy:
+    max_event_age: timedelta
+
+    def __post_init__(self) -> None:
+        if self.max_event_age <= timedelta(0):
+            raise ValueError("max_event_age must be positive")
 
 
 class EvidenceService:
+    def __init__(self, freshness_policy: FreshnessPolicy | None = None) -> None:
+        self.freshness_policy = freshness_policy
+
     def record_snapshot(
         self,
         factory: sessionmaker[Session],
@@ -50,10 +79,17 @@ class EvidenceService:
             raise ValueError("source provenance fields are required")
         if not isinstance(raw_payload, dict):
             raise ValueError("raw_payload must be a JSON object")
+        canonical_hash = hashlib.sha256(
+            json.dumps(raw_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        if content_sha256.lower() != canonical_hash:
+            raise ValueError("content_sha256 does not match canonical raw_payload")
         if source_published_at is not None and source_published_at > now:
             raise ValueError("source_published_at cannot be in the future")
         age = now - retrieved_at
-        health = "stale" if stale_after is not None and age > stale_after else "healthy"
+        health = "stale" if stale_after is not None and age > stale_after else "unknown"
+        if stale_after is not None and age <= stale_after:
+            health = "healthy"
         with session_scope(factory) as session:
             if supersedes_snapshot_id is not None and session.get(
                 SourceSnapshot, supersedes_snapshot_id
@@ -99,6 +135,13 @@ class EvidenceService:
         now = now or datetime.now(timezone.utc)
         _require_aware(now, "now")
         flags: list[str] = []
+        normalized_type = evidence_type.strip().lower()
+        if normalized_type not in ADMISSIBLE_EVIDENCE_TYPES:
+            flags.append("evidence_type_not_admissible")
+        if normalized_type in FORBIDDEN_EVIDENCE_TYPES or any(
+            alias in normalized_type for alias in ("risk", "weather", "model", "hazard")
+        ):
+            flags.append("evidence_type_forbidden")
         for value, name in (
             (observed_at, "observed_at"),
             (retrieved_at, "retrieved_at"),
@@ -111,6 +154,8 @@ class EvidenceService:
             flags.append("valid_until_timezone_missing")
         if _is_aware(observed_at) and observed_at > now:
             flags.append("observed_at_in_future")
+        if valid_until is not None and _is_aware(valid_until) and valid_until <= now:
+            flags.append("evidence_expired")
         try:
             _validate_geometry(geometry)
         except ValueError as exc:
@@ -127,8 +172,12 @@ class EvidenceService:
                 raise ValueError("snapshot does not exist")
             if source != snapshot.source:
                 flags.append("source_snapshot_mismatch")
-            if snapshot.health == "stale":
-                flags.append("snapshot_stale")
+            if snapshot.health != "healthy":
+                flags.append(
+                    "snapshot_stale"
+                    if snapshot.health == "stale"
+                    else "snapshot_freshness_unknown"
+                )
             evidence = Evidence(
                 id=evidence_id or str(uuid.uuid4()),
                 snapshot_id=snapshot.id,
@@ -174,10 +223,21 @@ class EvidenceService:
                 raise ValueError("evidence does not exist")
             if session.get(RoadSegment, segment_id) is None:
                 raise ValueError("segment does not exist")
+            association = EvidenceAssociation(
+                id=str(uuid.uuid4()),
+                evidence_id=evidence_id,
+                segment_id=segment_id,
+                method=method,
+                distance_m=distance_m,
+                created_at=datetime.now(timezone.utc),
+            )
+            session.add(association)
+            session.flush()
+            # Preserve the old DTO shape without persisting mutable core facts.
             evidence.segment_id = segment_id
             evidence.association_method = method
             evidence.association_distance_m = distance_m
-            session.flush()
+            session.expunge(evidence)
             return evidence
 
     associate_segment = associate_evidence

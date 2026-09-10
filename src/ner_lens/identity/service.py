@@ -80,6 +80,10 @@ class AuthorizationService:
         self._audit_sink = audit_sink
         self._session_factory = session_factory
 
+    @property
+    def uses_persisted_context(self) -> bool:
+        return self._session_factory is not None
+
     def authorize(
         self,
         actor: AuthContext,
@@ -182,6 +186,14 @@ class AuthorizationService:
             if stored_actor is None or not stored_actor.active:
                 return self._decide(
                     actor, action, "actor_inactive", "actor is not active", request_id
+                )
+            if stored_actor.actor_type != actor.actor_type:
+                return self._decide(
+                    actor,
+                    action,
+                    "actor_type_denied",
+                    "actor type does not match persisted identity",
+                    request_id,
                 )
             stored_session = session.get(SessionRecord, actor.session_id)
             if (

@@ -12,9 +12,16 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ner_lens.audit.service import AuditLog
 from ner_lens.common.idempotency import canonical_request_hash, validate_idempotency_key
-from ner_lens.corridor.models import RoadSegment
-from ner_lens.evidence.models import Evidence, EvidenceReview, ReviewIdempotency
-from ner_lens.identity.service import AuthContext
+from ner_lens.corridor.models import CorridorVersion, RoadSegment
+from ner_lens.evidence.models import (
+    Evidence,
+    EvidenceAssociation,
+    EvidenceReview,
+    ReviewIdempotency,
+    SourceSnapshot,
+)
+from ner_lens.evidence.service import FreshnessPolicy
+from ner_lens.identity.service import AuthContext, AuthorizationService, ResourceScope
 from ner_lens.status.models import StatusConflict, StatusDecision, StatusIdempotency
 
 REPLAY_REVIEWER = "replay_reviewer"
@@ -54,7 +61,15 @@ class StatusResult:
 
 
 class ReviewService:
-    def __init__(self, audit_log: AuditLog | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        authorization_service: AuthorizationService,
+        audit_log: AuditLog | None = None,
+    ) -> None:
+        if not authorization_service.uses_persisted_context:
+            raise ValueError("persisted AuthorizationService is required")
+        self.authorization_service = authorization_service
         self.audit_log = audit_log or AuditLog()
 
     def review_evidence(
@@ -84,6 +99,22 @@ class ReviewService:
             }
         )
         with _session_scope(factory) as session:
+            evidence = session.get(Evidence, evidence_id)
+            if evidence is None:
+                raise ValueError("evidence does not exist")
+            server_jurisdiction = _segment_jurisdiction(
+                session, _evidence_segment_id(session, evidence)
+            )
+            if jurisdiction_id != server_jurisdiction:
+                raise PermissionError("jurisdiction must be derived from the evidence segment")
+            decision = self.authorization_service.authorize(
+                actor,
+                "review_evidence",
+                ResourceScope(jurisdiction_id=server_jurisdiction),
+                request_id=request_id,
+            )
+            if not decision.allowed:
+                raise PermissionError(decision.reason)
             prior = session.scalar(
                 select(ReviewIdempotency).where(
                     ReviewIdempotency.actor_id == actor.actor_id,
@@ -94,27 +125,33 @@ class ReviewService:
                 if prior.request_hash != request_hash:
                     raise IdempotencyConflict("review idempotency key conflicts with request body")
                 return _review_result(session.get(EvidenceReview, prior.review_id))
-            evidence = session.get(Evidence, evidence_id)
-            if evidence is None:
-                raise ValueError("evidence does not exist")
+            previous_state = _current_review_state(session, evidence)
+            if evidence.review_state == "quarantined" or evidence.quality_flags:
+                raise ValueError("quarantined or invalid evidence cannot be reviewed")
             before_hash = canonical_request_hash(
-                {"review_state": evidence.review_state, "quality_flags": evidence.quality_flags}
+                {"review_state": previous_state, "quality_flags": evidence.quality_flags}
             )
-            resulting_state = _review_state(evidence.review_state, action)
+            resulting_state = _review_state(previous_state, action)
             if action == "merge":
                 if (
                     merge_into_evidence_id is None
                     or session.get(Evidence, merge_into_evidence_id) is None
                 ):
                     raise ValueError("merge requires an existing target evidence record")
-            evidence.review_state = resulting_state
-            if (
-                resulting_state == "conflict"
-                and "review_disagreement" not in evidence.quality_flags
-            ):
-                evidence.quality_flags = [*evidence.quality_flags, "review_disagreement"]
             after_hash = canonical_request_hash(
-                {"review_state": evidence.review_state, "quality_flags": evidence.quality_flags}
+                {"review_state": resulting_state, "quality_flags": evidence.quality_flags}
+            )
+            audit_id = str(uuid.uuid4())
+            self.audit_log.append(
+                actor_id=actor.actor_id,
+                action="evidence.review",
+                target_type="evidence",
+                target_id=evidence.id,
+                request_id=request_id,
+                before_hash=before_hash,
+                after_hash=after_hash,
+                session=session,
+                event_id=audit_id,
             )
             review = EvidenceReview(
                 id=str(uuid.uuid4()),
@@ -128,21 +165,10 @@ class ReviewService:
                 idempotency_key=idempotency_key,
                 before_hash=before_hash,
                 after_hash=after_hash,
-                audit_event_id="pending",
+                audit_event_id=audit_id,
                 occurred_at=datetime.now(timezone.utc),
             )
             session.add(review)
-            session.flush()
-            audit = self.audit_log.append(
-                actor_id=actor.actor_id,
-                action="evidence.review",
-                target_type="evidence",
-                target_id=evidence.id,
-                request_id=request_id,
-                before_hash=before_hash,
-                after_hash=after_hash,
-            )
-            review.audit_event_id = audit.id
             session.add(
                 ReviewIdempotency(
                     id=str(uuid.uuid4()),
@@ -157,7 +183,7 @@ class ReviewService:
                 review_id=review.id,
                 evidence_id=evidence.id,
                 review_state=resulting_state,
-                audit_event_id=audit.id,
+                audit_event_id=audit_id,
                 request_id=request_id,
                 before_hash=before_hash,
                 after_hash=after_hash,
@@ -165,7 +191,17 @@ class ReviewService:
 
 
 class StatusService:
-    def __init__(self, audit_log: AuditLog | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        authorization_service: AuthorizationService,
+        freshness_policy: FreshnessPolicy,
+        audit_log: AuditLog | None = None,
+    ) -> None:
+        if not authorization_service.uses_persisted_context:
+            raise ValueError("persisted AuthorizationService is required")
+        self.authorization_service = authorization_service
+        self.freshness_policy = freshness_policy
         self.audit_log = audit_log or AuditLog()
 
     def decide_status(
@@ -218,6 +254,20 @@ class StatusService:
             }
         )
         with _session_scope(factory) as session:
+            server_jurisdiction = _segment_jurisdiction(session, segment_id)
+            if jurisdiction_id != server_jurisdiction:
+                raise PermissionError("jurisdiction must be derived from the segment")
+            decision = self.authorization_service.authorize(
+                actor,
+                "publish_status",
+                ResourceScope(
+                    jurisdiction_id=server_jurisdiction,
+                    status_authority_actor_id=actor.actor_id,
+                ),
+                request_id=request_id,
+            )
+            if not decision.allowed:
+                raise PermissionError(decision.reason)
             prior = session.scalar(
                 select(StatusIdempotency).where(
                     StatusIdempotency.actor_id == actor.actor_id,
@@ -228,20 +278,22 @@ class StatusService:
                 if prior.request_hash != request_hash:
                     raise IdempotencyConflict("status idempotency key conflicts with request body")
                 return _status_result(session.get(StatusDecision, prior.status_decision_id))
-            if session.get(RoadSegment, segment_id) is None:
-                raise ValueError("segment does not exist")
             evidence = session.scalars(select(Evidence).where(Evidence.id.in_(evidence_ids))).all()
             if len(evidence) != len(set(evidence_ids)):
                 raise ValueError("every evidence ID must exist")
-            if status in {"restricted", "closed"}:
-                if not evidence_ids and reason_code != "authority_order":
-                    raise ValueError("restricted or closed status requires accepted evidence")
-                if any(item.evidence_type in {"risk", "weather"} for item in evidence):
-                    raise ValueError("risk or weather evidence cannot change status")
-                if any(item.review_state != "accepted" for item in evidence):
-                    raise ValueError("status evidence must be accepted")
+            if status != "unknown":
+                if not evidence_ids:
+                    raise ValueError("status requires accepted evidence")
+                _require_eligible_evidence(
+                    session,
+                    evidence,
+                    segment_id=segment_id,
+                    effective_at=effective_at,
+                    policy=self.freshness_policy,
+                )
             before = _current_decision(session, segment_id, vehicle_scope, direction, effective_at)
             before_hash = canonical_request_hash(_status_payload(before))
+            audit_id = str(uuid.uuid4())
             decision = StatusDecision(
                 id=str(uuid.uuid4()),
                 segment_id=segment_id,
@@ -258,7 +310,19 @@ class StatusService:
                 request_id=request_id,
                 idempotency_key=idempotency_key,
                 created_at=datetime.now(timezone.utc),
-                audit_event_id="pending",
+                audit_event_id=audit_id,
+            )
+            after_hash = canonical_request_hash(_status_payload(decision))
+            self.audit_log.append(
+                actor_id=actor.actor_id,
+                action="status.decide",
+                target_type="segment",
+                target_id=segment_id,
+                request_id=request_id,
+                before_hash=before_hash,
+                after_hash=after_hash,
+                session=session,
+                event_id=audit_id,
             )
             session.add(decision)
             session.flush()
@@ -276,17 +340,6 @@ class StatusService:
                             created_at=datetime.now(timezone.utc),
                         )
                     )
-            after_hash = canonical_request_hash(_status_payload(decision))
-            audit = self.audit_log.append(
-                actor_id=actor.actor_id,
-                action="status.decide",
-                target_type="segment",
-                target_id=segment_id,
-                request_id=request_id,
-                before_hash=before_hash,
-                after_hash=after_hash,
-            )
-            decision.audit_event_id = audit.id
             session.add(
                 StatusIdempotency(
                     id=str(uuid.uuid4()),
@@ -360,6 +413,73 @@ def _session_scope(factory: sessionmaker[Session]):
     from ner_lens.db import session_scope
 
     return session_scope(factory)
+
+
+def _segment_jurisdiction(session: Session, segment_id: str) -> str:
+    segment = session.get(RoadSegment, segment_id)
+    if segment is None:
+        raise ValueError("segment does not exist")
+    corridor = session.get(CorridorVersion, segment.corridor_version_id)
+    if corridor is None or corridor.corridor_key != "guwahati_silchar_nh27":
+        raise PermissionError("segment jurisdiction is not configured")
+    return REPLAY_JURISDICTION
+
+
+def _evidence_segment_id(session: Session, evidence: Evidence) -> str:
+    association = session.scalar(
+        select(EvidenceAssociation)
+        .where(EvidenceAssociation.evidence_id == evidence.id)
+        .order_by(EvidenceAssociation.created_at.desc(), EvidenceAssociation.id.desc())
+    )
+    if association is None:
+        raise PermissionError("evidence must be associated with a corridor segment")
+    return association.segment_id
+
+
+def _current_review_state(session: Session, evidence: Evidence) -> str:
+    review = session.scalar(
+        select(EvidenceReview)
+        .where(EvidenceReview.evidence_id == evidence.id)
+        .order_by(EvidenceReview.occurred_at.desc(), EvidenceReview.id.desc())
+    )
+    return review.resulting_state if review is not None else evidence.review_state
+
+
+def _require_eligible_evidence(
+    session: Session,
+    evidence: list[Evidence],
+    *,
+    segment_id: str,
+    effective_at: datetime,
+    policy: FreshnessPolicy | None,
+) -> None:
+    if policy is None:
+        raise ValueError("freshness policy is required for status evidence")
+    for item in evidence:
+        if item.evidence_type.lower() in {"risk", "weather", "model_prediction", "hazard"} or any(
+            alias in item.evidence_type.lower() for alias in ("risk", "weather", "model", "hazard")
+        ):
+            raise ValueError("risk or weather/model/hazard evidence cannot change status")
+        if item.review_state == "quarantined" or item.quality_flags:
+            raise ValueError("quarantined or invalid evidence cannot change status")
+        if _current_review_state(session, item) != "accepted":
+            raise ValueError("status evidence must be accepted")
+        associations = session.scalars(
+            select(EvidenceAssociation).where(
+                EvidenceAssociation.evidence_id == item.id,
+                EvidenceAssociation.segment_id == segment_id,
+            )
+        ).all()
+        if not associations:
+            raise ValueError("status evidence must be associated with the target segment")
+        snapshot = session.get(SourceSnapshot, item.snapshot_id)
+        if snapshot is None or snapshot.health != "healthy":
+            raise ValueError("status evidence freshness is unknown or stale")
+        observed_at = _as_utc(item.observed_at)
+        if effective_at < observed_at or effective_at - observed_at > policy.max_event_age:
+            raise ValueError("status evidence event is stale")
+        if item.valid_until is None or _as_utc(item.valid_until) <= effective_at:
+            raise ValueError("status evidence is expired or has no validity window")
 
 
 def _require_replay_identity(actor: AuthContext, expected_id: str, jurisdiction_id: str) -> None:
@@ -497,6 +617,5 @@ def _overlapping_decisions(
     return [
         decision
         for decision in decisions
-        if set(decision.vehicle_scope).intersection(vehicle_scope)
-        and (decision.direction == "both" or direction == "both" or decision.direction == direction)
+        if _scope_overlaps(decision, vehicle_scope, direction)
     ]
