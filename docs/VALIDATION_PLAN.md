@@ -56,7 +56,7 @@ The following tests are mandatory before the thin slice can be accepted:
 
 ### M0: reconnaissance, evidence, and contract freeze
 
-Required checks: preserve a dated official SIH-26002 snapshot and requirement diff, or a signed risk acceptance; audit corridor, two route hypotheses, restrictions, source access/terms/fallbacks, labels, mission, status authority, and `RouteVerificationPolicy`; confirm ownership and contract names; lint links/paths and record the first baseline-commit procedure. Terra P0 blocks all runtime implementation.
+Required checks: preserve a dated official SIH-26002 snapshot and requirement diff, or a signed risk acceptance; audit corridor, two route hypotheses, restrictions, source access/terms/fallbacks, labels, mission, status authority, and `RouteVerificationPolicy`; confirm ownership and contract names; lint links/paths and record the first baseline-commit procedure. Terra P0 blocks pilot/live runtime. The bounded, expiring replay-only exception in `decisions/hackathon-replay-track.md` authorizes only its named tasks and does not count as a P0 pass.
 
 ### M1: foundation, identity, corridor, mission schema, and router adapter
 

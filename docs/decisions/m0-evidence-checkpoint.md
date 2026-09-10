@@ -3,7 +3,7 @@
 **Recorded:** 2026-09-10  
 **Overall Terra P0:** `BLOCKED`  
 **Routing sub-gate:** `PASS`  
-**Runtime authorization:** none; M1 must not start
+**Runtime authorization:** no pilot/live runtime. A bounded replay-only exception is recorded in `hackathon-replay-track.md`; Terra P0 remains blocked.
 
 ## Integrated evidence
 
@@ -40,4 +40,4 @@ Until these are resolved, route mode defaults to `insufficient_evidence`, `recom
 
 ## Decision
 
-Accept the A/B M0 artifacts as a bounded evidence checkpoint. Do not record M0 or Terra P0 as complete, and do not authorize `A-M1-01`, `B-M1-01`, `B-M1-02`, or any other runtime task.
+Accept the A/B M0 artifacts as a bounded evidence checkpoint. Do not record M0 or Terra P0 as complete. The only runtime tasks authorized before P0 are the time-boxed replay tasks explicitly named in `hackathon-replay-track.md`; all pilot/live work remains prohibited.

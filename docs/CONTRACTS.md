@@ -10,6 +10,24 @@ This is a backend contract. It does not define a frontend, chatbot, LLM/RAG, age
 
 All UUIDs, coordinates, distances, times, probabilities, and route values in JSON examples are synthetic contract fixtures. They are not measured NER LENS results or current corridor conditions.
 
+For the authorized hackathon replay build, every demo-visible corridor-state, status-decision, route-comparison, audit, and mission response must also include:
+
+```json
+{
+  "data_mode": "replay",
+  "provenance": {
+    "fixture_sha256": "64-hex",
+    "observed_at": "timestamp-or-null",
+    "retrieved_at": "timestamp",
+    "graph_version": "string",
+    "policy_version": "replay_unapproved_v1"
+  },
+  "limitations": ["Replay evidence is not current operational status or a route recommendation."]
+}
+```
+
+These fields are immutable response facts, not optional presentation copy. The replay API must always return `mode=insufficient_evidence` and `recommended_route_id=null`; other policy modes are test-only until an operational owner approves policy thresholds.
+
 ## 1. Common wire rules
 
 ### JSON conventions
