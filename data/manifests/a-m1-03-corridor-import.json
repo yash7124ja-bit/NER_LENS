@@ -1,0 +1,25 @@
+{
+  "manifest_id": "a-m1-03-corridor-import",
+  "manifest_sha256": "1ef2299e56aa65968a3e1d900d273fb5fac30111a30cfb02bd44af45cb650e40",
+  "corridor_key": "guwahati_silchar_nh27",
+  "graph_version": "ner-lens-route-audit-fixture-v1",
+  "graph_sha256": "7206d72246c0d975d7645938f9ac83a65cbcdda901c639ae4f3ff8b3533fbf48",
+  "source_url": "replay://fixture_graph.v1",
+  "provenance_label": "replay",
+  "fixture_path": "data/corridor/graphhopper/fixture_graph.v1.json",
+  "audit_band_ids": [
+    "band_1_jalukbari_nagaon",
+    "band_2_nagaon_doboka",
+    "band_3_doboka_lanka_lumding",
+    "band_4_lumding_maibang",
+    "band_5_maibang_harangajao_balachera_hill",
+    "band_6_balachera_silchar"
+  ],
+  "v3_mapping_path": "data/corridor/graphhopper/real_evidence/v3/corridor_edge_mapping.json",
+  "v3_mapping_sha256": "1370d2c15b3066063390d28d530b16c0661f45e3ed30c664260fa3ea1f331bec",
+  "mapping_semantics": "Each audit band maps to its six independent v3 GraphHopper leg receipt identifiers per profile; street_ref evidence is retained where present. GraphHopper public API did not expose OSM way IDs, so no exact way IDs are asserted.",
+  "limitations": [
+    "Replay fixture import is not an operational graph import.",
+    "v3 receipts establish graph representability only, not current passability, legality, status, or recommendation."
+  ]
+}
