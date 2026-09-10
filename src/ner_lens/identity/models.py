@@ -43,7 +43,10 @@ class SessionRecord(Base):
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     def is_valid(self, now: datetime) -> bool:
-        return self.active and self.revoked_at is None and now < self.expires_at
+        expires_at = self.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        return self.active and self.revoked_at is None and now < expires_at
 
 
 class RoleAssignment(Base):
