@@ -121,8 +121,9 @@ class AuthorizationService:
                     "status authority jurisdiction must be server-derived",
                     request_id,
                 )
-            if actor.actor_type == "synthetic" and (
+            if (
                 actor.actor_id != REPLAY_STATUS_ACTOR
+                or actor.actor_type != "synthetic"
                 or scope.jurisdiction_id != REPLAY_STATUS_JURISDICTION
             ):
                 return self._decide(
