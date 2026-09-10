@@ -72,6 +72,12 @@ class CorridorVersion(Base):
     corridor_key: Mapped[str] = mapped_column(String(128), nullable=False)
     graph_version: Mapped[str] = mapped_column(String(128), nullable=False)
     graph_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_url: Mapped[str] = mapped_column(
+        String(512), nullable=False, default="replay://unspecified"
+    )
+    provenance_label: Mapped[str] = mapped_column(String(32), nullable=False, default="replay")
+    route_buffer_km: Mapped[float] = mapped_column(nullable=False, default=5.0)
+    hazard_context_buffer_km: Mapped[float] = mapped_column(nullable=False, default=20.0)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     effective_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -96,6 +102,7 @@ class RoadSegment(Base):
     external_ref: Mapped[str] = mapped_column(String(255), nullable=False)
     segment_type: Mapped[str] = mapped_column(String(16), nullable=False)
     direction: Mapped[str] = mapped_column(String(16), nullable=False)
+    authority_ref: Mapped[str | None] = mapped_column(String(255))
     geometry: Mapped[dict[str, Any]] = mapped_column(Geometry4326(), nullable=False)
     vehicle_constraints: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
 
