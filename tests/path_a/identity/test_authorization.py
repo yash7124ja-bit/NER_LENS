@@ -45,7 +45,7 @@ def test_authorize_enforces_role_matrix_and_status_authority():
     ).allowed
 
     officer = actor_context(roles=("district_officer",))
-    assert service.authorize(
+    assert not service.authorize(
         officer,
         "publish_status",
         ResourceScope(
@@ -206,3 +206,54 @@ def test_persisted_identity_and_assignment_state_is_checked():
         session.get(SessionRecord, session_id).revoked_at = now
         session.commit()
     assert not service.authorize(actor, "review_evidence", scope, now=now).allowed
+
+
+def test_persisted_ordinary_district_officer_cannot_publish_in_replay_mode():
+    actor_id = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+    session_id = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
+    now = datetime.now(timezone.utc)
+    factory = build_session_factory(Settings(database_url="sqlite+pysqlite:///:memory:"))
+    Base.metadata.create_all(factory.kw["bind"])
+    with factory() as session:
+        session.add(Jurisdiction(id="replay-guwahati", code="replay", name="Replay"))
+        session.add(Actor(id=actor_id, external_subject="ordinary", actor_type="user"))
+        session.add(
+            SessionRecord(
+                id=session_id,
+                actor_id=actor_id,
+                token_issued_at=now,
+                expires_at=now + timedelta(hours=1),
+                active=True,
+            )
+        )
+        session.add(
+            RoleAssignment(
+                id="ffffffff-ffff-4fff-8fff-ffffffffffff",
+                actor_id=actor_id,
+                role="district_officer",
+                jurisdiction_id="replay-guwahati",
+            )
+        )
+        session.commit()
+    actor = AuthContext(
+        actor_id=actor_id,
+        actor_type="user",
+        roles=("district_officer",),
+        jurisdiction_ids=("replay-guwahati",),
+        mission_ids=(),
+        session_id=session_id,
+        token_issued_at=now,
+        expires_at=now + timedelta(hours=1),
+        status_authority_actor_id=actor_id,
+    )
+    decision = AuthorizationService(session_factory=factory).authorize(
+        actor,
+        "publish_status",
+        ResourceScope(
+            jurisdiction_id="replay-guwahati",
+            status_authority_actor_id=actor_id,
+        ),
+        now=now,
+    )
+    assert not decision.allowed
+    assert decision.code == "replay_authority_scope_denied"
