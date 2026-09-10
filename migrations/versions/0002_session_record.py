@@ -9,7 +9,6 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-
 revision = "0002_session_record"
 down_revision = "0001_foundation"
 branch_labels = None
@@ -17,6 +16,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    if "session_record" in sa.inspect(op.get_bind()).get_table_names():
+        return
     op.create_table(
         "session_record",
         sa.Column("id", sa.String(length=36), nullable=False),
