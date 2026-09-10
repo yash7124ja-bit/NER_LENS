@@ -36,6 +36,7 @@ REQUIRED_BAND_FIELDS = {
     "restrictions",
     "hazard_context",
     "missing_legality_data",
+    "planned_unopened",
 }
 
 REQUIRED_RESTRICTION_FIELDS = {

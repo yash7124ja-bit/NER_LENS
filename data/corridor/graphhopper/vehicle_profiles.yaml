@@ -12,6 +12,23 @@
 # are the fields the routing hard-constraint filter MUST check before any
 # risk scoring, per ARCHITECTURE.md D-007 and CONTRACTS.md RouteVerificationPolicy.
 
+# Correction (B-M0-01 corrective audit, post Terra P0 review): all three
+# profiles now list an IDENTICAL hard_constraints_checked set. This is
+# deliberate and matches the test-local evaluator in
+# tests/path_b/routing/test_hard_constraint_audit.py: every check
+# (topology, surface, bridge/tunnel/approach structure, access, maxheight,
+# maxweight, hgv, construction, turn_restrictions, direction, and
+# planned/unopened-road exclusion) runs for EVERY profile on EVERY band.
+# What differs between profiles is the OUTCOME of a check (a profile's own
+# max_weight_t/max_height_m/hgv_exempt values), never which checks are
+# performed. The previous version of this file listed different, narrower
+# check sets per profile (e.g. light_goods omitted maxheight/maxweight)
+# even though the evaluator already compared light_goods' own max_height_m
+# against band restrictions (proven by tests/replay/routing/cases/
+# bridge_tunnel_access.json, where light_goods is excluded on
+# maxheight_exceeded). That mismatch was corrected here rather than left
+# to silently under-document real behavior.
+
 profiles:
   light_goods:
     graphhopper_base_vehicle: "car"
@@ -22,9 +39,15 @@ profiles:
     hard_constraints_checked:
       - topology
       - surface
-      - direction
+      - bridge_tunnel_approach_structure
       - access
+      - maxheight
+      - maxweight
+      - hgv
       - construction
+      - turn_restrictions
+      - direction
+      - planned_road_exclusion
 
   rigid_truck:
     graphhopper_base_vehicle: "truck"
@@ -35,14 +58,15 @@ profiles:
     hard_constraints_checked:
       - topology
       - surface
-      - bridge_tunnel_clearance
+      - bridge_tunnel_approach_structure
+      - access
       - maxheight
       - maxweight
       - hgv
-      - direction
-      - access
       - construction
       - turn_restrictions
+      - direction
+      - planned_road_exclusion
 
   emergency:
     graphhopper_base_vehicle: "car"
@@ -51,18 +75,22 @@ profiles:
     max_height_m: 3.0
     hgv_exempt: true
     legal_exemptions:
-      - "May be exempt from time-window/convoy restrictions where locally documented; NOT exempt from bridge/tunnel physical clearance or maxweight structural limits."
+      - "May be exempt from time-window/convoy restrictions where locally documented; NOT exempt from bridge/tunnel physical clearance, maxweight structural limits, confirmed active construction closures, or planned/unopened roads."
     hard_constraints_checked:
       - topology
       - surface
-      - bridge_tunnel_clearance
+      - bridge_tunnel_approach_structure
+      - access
       - maxheight
       - maxweight
-      - direction
-      - access
+      - hgv
       - construction
+      - turn_restrictions
+      - direction
+      - planned_road_exclusion
 
 notes:
-  - "hard_constraints_checked lists the audit categories required by MILESTONES.md B-M0-01 acceptance criteria: topology, surface, bridge/tunnel, access, maxheight, maxweight, hgv, construction, turn and direction."
+  - "hard_constraints_checked lists the audit categories required by MILESTONES.md B-M0-01 acceptance criteria: topology, surface, bridge/tunnel, access, maxheight, maxweight, hgv, construction, turn and direction, plus planned/unopened-road exclusion added in the corrective audit. Every category is checked for every profile; hgv_exempt/max_weight_t/max_height_m only change the outcome, never whether the check runs."
   - "A risk score (landslide susceptibility, rainfall, staleness) must never appear in this file's exclusion logic. Risk ranks feasible alternatives; it does not create one. See ARCHITECTURE.md D-007."
+  - "Unknown/missing legality data (null maxheight_m/maxweight_t, hgv='unknown', surface='unverified') must never itself become a hard exclusion. It is recorded as a visible 'insufficient_evidence' coverage flag instead. See test_unknown_fields_never_become_hard_exclusion and test_coverage_state_flags_missing_data_without_excluding in tests/path_b/routing/test_hard_constraint_audit.py."
   - "GraphHopper unavailability handling: the adapter contract (B-M1-02, not implemented here) must return a labelled degraded/upstream_unavailable result, never an unlabelled cached route. See tests/replay/routing/cases/graphhopper_outage.json for the deterministic fixture case."

@@ -21,7 +21,9 @@
     "route_nh6_alternative": {
       "route_feasible": false,
       "excluded_bands": [
-        {"band_id": "band_alt_2_shillong_jowai", "reason_code": "hgv_access_restricted"}
+        {"band_id": "band_alt_2_shillong_jowai", "reason_code": "hgv_access_restricted"},
+        {"band_id": "band_alt_2_shillong_jowai", "reason_code": "planned_road_not_open"},
+        {"band_id": "band_alt_2_shillong_jowai", "reason_code": "under_construction"}
       ]
     },
     "audit_conclusion": "no_verified_feasible_route",

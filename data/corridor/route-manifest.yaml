@@ -1,24 +1,36 @@
-# NER LENS route manifest — B-M0-01 draft input
+# NER LENS route manifest — B-M0-01
 #
-# Status: PROVISIONAL. This manifest is Path B's working draft of the corridor
-# and candidate routes, built directly from the two primary SIH-26002 source
-# documents because Path A had not yet published `docs/decisions/corridor-audit.md`
-# or a `CorridorVersion` at the time this audit was produced (verified by
-# inspecting the path-a worktree at commit f6cfd51: no docs/decisions/ or data/
-# directory existed there). It must be reconciled field-by-field against
-# A-M0-01's corridor_id, six named audit bands, route buffer, and administrative
-# unit list once published. See docs/decisions/route-audit.md section
-# "Reconciliation with A-M0-01" for the exact reconciliation procedure.
+# Status: PROVISIONAL, reconciled with A-M0-01. Terra P0 remains BLOCKED
+# (evidence gaps, not a corridor rejection) per A's signed ledger at
+# docs/decisions/corridor-audit.md (path-a worktree). See
+# "Historical note (2026-09-10, initial draft)" below and
+# docs/decisions/route-audit.md section 0 for the full reconciliation record.
 #
 # This manifest does not assert that Guwahati-Silchar is the accepted corridor.
-# Acceptance is Sol/Terra P0's decision, informed by A-M0-01 and this document
-# together.
+# Acceptance is Sol/Terra P0's decision. A-M0-01 keeps both hypotheses
+# configurable pending the missing route/authority/terms/label/mission/policy
+# evidence listed in its P0 decision record.
 
-corridor_id: "PROVISIONAL-guwahati-silchar-v0"
+corridor_id: "guwahati_silchar_nh27"   # canonical ID from A-M0-01 (docs/decisions/corridor-audit.md section 1)
 corridor_name: "Guwahati-Silchar (NH-27) with NH-6 alternative"
 provisional: true
-draft_source: "SIH-26002 primary source documents (dossier + tech blueprint), not an approved CorridorVersion"
-pending_reconciliation_with: "A-M0-01 docs/decisions/corridor-audit.md (not yet published as of this draft)"
+terra_p0_status: "BLOCKED — evidence gaps (see A-M0-01 P0 decision record items 1-7); not a corridor rejection"
+reconciled_with_a_m0_01: true
+reconciled_at_utc: "2026-09-10"
+reconciliation_source: "D:/SIH-2026/NER_LENS/.worktrees/path-a/docs/decisions/corridor-audit.md (A-M0-01, signed, Terra P0 not yet passed)"
+
+# Historical note (2026-09-10, initial draft): at the time this manifest was
+# first written, A-M0-01 had not yet been published — `docs/decisions/
+# corridor-audit.md` and any `data/` directory were absent from the path-a
+# worktree at baseline commit f6cfd51. This manifest used the provisional
+# corridor ID "PROVISIONAL-guwahati-silchar-v0" and treated the six bands,
+# buffers, and administrative-unit list as Path B's own reading of the two
+# primary SIH-26002 source documents pending reconciliation. That
+# reconciliation has now occurred (see reconciled_with_a_m0_01 above): the
+# corridor_id, six audit bands, endpoints, buffers, administrative units,
+# and NH-27/NH-6 hypotheses below all match A-M0-01's ledger. No field
+# disagreed; A-M0-01 reached the same values independently from the same
+# source documents.
 
 route_buffer_km: 5
 hazard_context_buffer_km: 20
@@ -36,6 +48,7 @@ vehicle_profiles:
 
 candidate_routes:
   - route_id: "route_nh27_primary"
+    canonical_id: "guwahati_silchar_nh27"   # matches A-M0-01 Candidate A
     display_name: "Guwahati-Silchar via NH-27"
     corridor_role: "primary"
     origin:
@@ -57,6 +70,7 @@ candidate_routes:
       - "Parliamentary highway record (Guwahati-Silchar NH-27 confirmation)"
 
   - route_id: "route_nh6_alternative"
+    canonical_id: "guwahati_silchar_nh6"   # Path B's naming for A-M0-01 Candidate B; A's ledger does not assign a distinct slug
     display_name: "Guwahati-Shillong-Jowai-Silchar via NH-6"
     corridor_role: "alternative"
     origin:
@@ -76,5 +90,7 @@ candidate_routes:
       - "The Mawlyngkhung-Panchgram high-speed corridor is a planned/approved project reference, not a confirmed open road. It must never be represented as an operational segment with status=open."
 
 known_gaps:
-  - "No real Geofabrik OSM extract has been downloaded or processed in this environment. All routability/restriction claims below are a desk audit of cited authority documents plus a hand-authored, explicitly labelled synthetic fixture graph, not a live GraphHopper result."
-  - "Truck restriction, bridge load limit, and construction-tag coverage in OSM for this corridor has not been verified against a real extract. This is a known, disclosed gap per MILESTONES.md B-M0-01 acceptance criteria ('missing legality data is visible')."
+  - "RESOLVED (2026-09-10 corrective audit): a real, dated Geofabrik North-Eastern Zone extract (data as of 2026-09-09T20:21:20Z) was downloaded and imported into an actual GraphHopper 11.0 instance outside this repository. Both candidates returned real HTTP 200 routes for the car and truck profiles. See data/corridor/graphhopper/real_evidence/ for full provenance and results."
+  - "CONFIRMED BY THE REAL RUN (not resolved): hgv, max_height, and max_weight OSM tags are absent (missing/None) along the returned path for both candidates in this extract. This was previously a synthetic/hand-authored assumption; it is now a measured finding from the real extract. Truck restriction and bridge/structure load-limit coverage in OSM for this corridor remains genuinely absent, per MILESTONES.md B-M0-01 acceptance criteria ('missing legality data is visible')."
+  - "The synthetic fixture graph (fixture_graph.v1.json) is still used for the six required deterministic hard-constraint tests, because the real extract has no known edge with an active closure, a confirmed HGV=NO restriction, or a confirmed construction closure on this corridor to exercise those specific code paths deterministically. The real run and the synthetic fixture serve different purposes and are not conflated: the real run proves GraphHopper import/query/restriction-tag mechanics against actual data; the fixture proves the hard-constraint policy's decision logic against every required category, including ones this real extract happens not to exhibit."
+  - "light_goods and emergency vehicle profiles were not separately encoded as GraphHopper custom_model files in the real run; only the official example car.json and truck.json were used (car standing in for light_goods/emergency). Authoring project-specific custom models with the exact vehicle_profiles.yaml numeric limits is real, bounded follow-on work, not fabricated here."

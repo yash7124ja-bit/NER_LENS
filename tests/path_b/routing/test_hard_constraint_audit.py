@@ -56,16 +56,36 @@ def evaluate_band(band, profile, direction, hard_excluded_band_ids):
 
     Deliberately does not look at hazard_context/landslide_susceptibility:
     risk never creates a hard exclusion (ARCHITECTURE.md D-007).
+
+    Every check below runs for every profile. Only the profile's own
+    max_height_m/max_weight_t/hgv_exempt values change the OUTCOME
+    (vehicle_profiles.yaml hard_constraints_checked is identical across
+    profiles for exactly this reason). Unknown/null/'unverified' values
+    never produce a reason here; see coverage_state() for how missing
+    legality data is surfaced instead of silently excluded or ignored.
     """
     reasons = []
     band_id = band["band_id"]
     r = band["restrictions"]
 
+    if not band["topology_routable"]:
+        reasons.append((band_id, "not_routable"))
+
     if band_id in hard_excluded_band_ids:
         reasons.append((band_id, "applicable_active_closure"))
 
+    if band.get("planned_unopened"):
+        reasons.append((band_id, "planned_road_not_open"))
+
     if _direction_blocked(band["direction"], direction):
         reasons.append((band_id, "direction_not_permitted"))
+
+    for turn in r["turn_restrictions"]:
+        if turn.get("applies_to_direction") == direction:
+            reasons.append((band_id, "turn_restriction_applies"))
+
+    if r["access"] in ("no", "private"):
+        reasons.append((band_id, "access_denied"))
 
     if r["maxheight_m"] is not None and profile["max_height_m"] > r["maxheight_m"]:
         reasons.append((band_id, "maxheight_exceeded"))
@@ -76,7 +96,20 @@ def evaluate_band(band, profile, direction, hard_excluded_band_ids):
     if r["hgv"] == "no" and not profile["hgv_exempt"]:
         reasons.append((band_id, "hgv_access_restricted"))
 
+    if r["construction"] is True:
+        reasons.append((band_id, "under_construction"))
+
     return reasons
+
+
+def coverage_state(band):
+    """The canonical conservative signal for unknown/missing legality data.
+
+    Mirrors CONTRACTS.md's insufficient_evidence vocabulary at band-level
+    audit granularity: missing data is visible and labelled, never treated
+    as a confirmed permissive fact and never silently excluded either.
+    """
+    return "insufficient_evidence" if band["missing_legality_data"] else "confirmed"
 
 
 def evaluate_bands_in_scope(graph, profiles, request):
@@ -198,3 +231,175 @@ def test_no_feasible_route_when_every_candidate_is_excluded():
     )
     assert case["expected"]["audit_conclusion"] == "no_verified_feasible_route"
     assert case["expected"]["routes"] == []
+
+
+# --- Corrective-audit coverage added after Terra P0 review (B-M0-01 fix) ---
+# The six cases above cover closed edge / vehicle restriction / direction /
+# bridge+tunnel+access / GraphHopper outage / no-feasible-route. Terra found
+# the remaining MILESTONES.md categories — topology, surface (incl. explicit
+# unknown), bridge/tunnel/approach as a structural fact, access, confirmed
+# construction, turn restrictions, and planned/unopened-road exclusion —
+# lacked executable checks. Each test below targets one synthetic
+# `test_fixture_only` band added specifically for that category, so it
+# cannot silently interact with the real-candidate bands used above.
+
+
+def test_topology_not_routable_is_a_hard_exclusion():
+    graph = load_graph()
+    profiles = load_profiles()
+    reasons = evaluate_bands_in_scope(
+        graph,
+        profiles,
+        {
+            "vehicle_profile": "rigid_truck",
+            "direction": "forward",
+            "bands_in_scope": ["band_test_disconnected_segment"],
+            "hard_excluded_band_ids": [],
+        },
+    )
+    assert as_reason_set(reasons) == {
+        ("band_test_disconnected_segment", "not_routable")
+    }
+
+
+def test_surface_unverified_is_visible_not_excluded():
+    graph = load_graph()
+    profiles = load_profiles()
+    band = band_index(graph)["band_alt_2_shillong_jowai"]
+    assert band["surface"] == "unverified"
+    assert "surface" in band["missing_legality_data"]
+    # surface is never a field the evaluator checks for exclusion; confirm
+    # no reason code named after surface can ever be produced.
+    for profile_name in profiles:
+        reasons = evaluate_band(band, profiles[profile_name], "forward", [])
+        assert all("surface" not in code for _, code in reasons)
+
+
+def test_bridge_structure_alone_is_not_a_hard_exclusion():
+    graph = load_graph()
+    profiles = load_profiles()
+    band = band_index(graph)["band_test_clean_bridge"]
+    assert band["segment_type"] == "bridge"
+    for profile_name in profiles:
+        reasons = evaluate_band(band, profiles[profile_name], "forward", [])
+        assert reasons == [], (
+            f"a bridge with no numeric/legal restriction must not exclude {profile_name}"
+        )
+
+
+def test_access_denied_excludes_every_profile():
+    graph = load_graph()
+    profiles = load_profiles()
+    for profile_name in profiles:
+        reasons = evaluate_bands_in_scope(
+            graph,
+            profiles,
+            {
+                "vehicle_profile": profile_name,
+                "direction": "forward",
+                "bands_in_scope": ["band_test_private_access"],
+                "hard_excluded_band_ids": [],
+            },
+        )
+        assert as_reason_set(reasons) == {("band_test_private_access", "access_denied")}
+
+
+def test_confirmed_construction_excludes_every_profile():
+    graph = load_graph()
+    profiles = load_profiles()
+    for profile_name in profiles:
+        reasons = evaluate_bands_in_scope(
+            graph,
+            profiles,
+            {
+                "vehicle_profile": profile_name,
+                "direction": "forward",
+                "bands_in_scope": ["band_test_confirmed_construction"],
+                "hard_excluded_band_ids": [],
+            },
+        )
+        assert as_reason_set(reasons) == {
+            ("band_test_confirmed_construction", "under_construction")
+        }
+
+
+def test_construction_false_is_not_excluded():
+    """construction=false (confirmed absent) must not be excluded, and must
+    be distinguishable from the many bands where construction is unaudited."""
+    graph = load_graph()
+    profiles = load_profiles()
+    clean_band = band_index(graph)["band_2_nagaon_doboka"]
+    assert clean_band["restrictions"]["construction"] is False
+    reasons = evaluate_band(clean_band, profiles["rigid_truck"], "forward", [])
+    assert all(code != "under_construction" for _, code in reasons)
+
+
+def test_turn_restriction_blocks_only_its_direction():
+    graph = load_graph()
+    profiles = load_profiles()
+    forward = evaluate_bands_in_scope(
+        graph,
+        profiles,
+        {
+            "vehicle_profile": "rigid_truck",
+            "direction": "forward",
+            "bands_in_scope": ["band_test_turn_restriction"],
+            "hard_excluded_band_ids": [],
+        },
+    )
+    reverse = evaluate_bands_in_scope(
+        graph,
+        profiles,
+        {
+            "vehicle_profile": "rigid_truck",
+            "direction": "reverse",
+            "bands_in_scope": ["band_test_turn_restriction"],
+            "hard_excluded_band_ids": [],
+        },
+    )
+    assert forward == []
+    assert as_reason_set(reverse) == {
+        ("band_test_turn_restriction", "turn_restriction_applies")
+    }
+
+
+def test_planned_unopened_road_excludes_every_profile_even_hgv_exempt_ones():
+    """A planned/approved-but-not-open road must never be usable, even for
+    a profile that is otherwise HGV-exempt. Risk/permission status of the
+    surrounding data must not matter once planned_unopened is true."""
+    graph = load_graph()
+    profiles = load_profiles()
+    band = band_index(graph)["band_alt_2_shillong_jowai"]
+    assert band["planned_unopened"] is True
+    for profile_name in ("light_goods", "emergency"):
+        reasons = evaluate_band(band, profiles[profile_name], "forward", [])
+        assert ("band_alt_2_shillong_jowai", "planned_road_not_open") in reasons
+
+
+def test_unknown_fields_never_become_hard_exclusion():
+    """Regression for the corrective-audit instruction: unknown legality or
+    coverage must remain visible, never a confirmed closure. band_1 has
+    unknown maxheight_m/maxweight_t/hgv for every profile and must be fully
+    feasible for all of them."""
+    graph = load_graph()
+    profiles = load_profiles()
+    band = band_index(graph)["band_1_jalukbari_nagaon"]
+    assert band["missing_legality_data"] == sorted(["maxheight_m", "maxweight_t", "hgv"])
+    for profile_name in profiles:
+        reasons = evaluate_band(band, profiles[profile_name], "forward", [])
+        assert reasons == [], f"unknown data wrongly excluded {profile_name}"
+
+
+def test_coverage_state_flags_missing_data_without_excluding():
+    graph = load_graph()
+    profiles = load_profiles()
+    incomplete_band = band_index(graph)["band_1_jalukbari_nagaon"]
+    complete_band = band_index(graph)["band_3_doboka_lanka_lumding"]
+
+    assert coverage_state(incomplete_band) == "insufficient_evidence"
+    assert coverage_state(complete_band) == "confirmed"
+
+    # insufficient_evidence coverage must not by itself appear as an
+    # exclusion reason code.
+    reasons = evaluate_band(incomplete_band, profiles["rigid_truck"], "forward", [])
+    assert all(code != "insufficient_evidence" for _, code in reasons)
