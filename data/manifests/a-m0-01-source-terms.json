@@ -6,25 +6,47 @@
   "corridor_alias": "guwahati_silchar_nh27",
   "source_policy": "metadata_only_no_raw_private_or_unlicensed_payloads",
   "real_route_probe": {
-    "evidence_source": "path-b commit 26c6e39 data/corridor/graphhopper/real_evidence",
+    "evidence_source": "path-b commit 137575f data/corridor/graphhopper/real_evidence/v2",
     "status": "real_bounded_non_runtime_probe",
     "extract_url": "https://download.geofabrik.de/asia/india/north-eastern-zone-260909.osm.pbf",
     "extract_data_as_of": "2026-09-09T20:21:20Z",
     "extract_sha256": "9250938dd6e8c61ad3ca533620a86c5d286e86f60c2bc45086e173f2ace068a9",
+    "extract_retrieval_utc": {
+      "before": "2026-09-10T05:49:57Z",
+      "after": "2026-09-10T05:51:56Z",
+      "authoritative_clock": "local_shell_clock_not_cached_http_date"
+    },
+    "retained_pbf_path": "D:\\SIH-2026\\NER_LENS_ARTIFACTS\\m0\\north-eastern-zone-260909.osm.pbf",
+    "retained_pbf_outside_git": true,
     "graphhopper_version": "11.0",
     "query_profiles": [
-      "car_proxy_for_light_goods_and_emergency",
-      "truck_proxy_for_rigid_truck"
+      "light_goods",
+      "rigid_truck",
+      "emergency"
     ],
-    "queries_returned_http_200": 4,
+    "queries_returned_http_200": 6,
+    "route_hypotheses_queried": ["guwahati_silchar_nh27", "guwahati_silchar_nh6"],
+    "raw_receipts": {
+      "info_response": "raw_info.json",
+      "route_responses": 6,
+      "response_index": "response_index.json",
+      "response_hashes_recorded": true,
+      "summary_hash_recorded": true
+    },
+    "receipt_hashes": {
+      "raw_info_sha256": "109b3a30745692ce57a1550bdc7eb58f1c67307a64221335c58c8e4fc3e5d637",
+      "response_index_sha256": "a9b2c38f00f82042a0041d710fd8c58868a8b42368e91f617088258c337f81ca",
+      "result_summary_sha256": "7eafd03f5b7be84ee6c9ab6310ad0217fc3bd25f62a1fc4d8044e309f331b97f"
+    },
+    "query_timestamps_utc": "2026-09-10T05:56:48Z to 2026-09-10T05:56:49Z",
     "approximate_endpoints": true,
     "nh6_waypoint_biased": true,
-    "receipt_form": "aggregated_path_details_and_recorded_provenance",
+    "receipt_form": "raw_info_and_six_route_responses_with_sha256_index_and_aggregated_summary",
     "does_not_establish": [
-      "exact_project_vehicle_profiles",
       "stable_operational_segment_ids",
       "named_highway_continuity_or_current_passability",
-      "complete_turn_direction_or_legality_review",
+      "turn_restriction_detail_or_complete_direction_legality_review",
+      "operational_graph_import_or_ongoing_monitoring",
       "authority_reviewer_source_terms_labels_mission_consent_or_policy_owner"
     ]
   },
@@ -71,7 +93,7 @@
       "observed": "2026-09-10",
       "fixture_mode": "replay",
       "health": "real_probe_only",
-      "required_before_runtime": "exact_project_profiles_full_receipts_and_operational_adapter_review"
+      "required_before_runtime": "operational_graph_import_segment_mapping_restriction_review_and_operational_adapter_review"
     },
     {
       "source_id": "SRC-IMD",

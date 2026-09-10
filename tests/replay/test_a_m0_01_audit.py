@@ -39,11 +39,25 @@ def test_manifest_has_required_fields_and_sources():
     assert manifest["source_policy"] == "metadata_only_no_raw_private_or_unlicensed_payloads"
     assert manifest["sources"]
     probe = manifest["real_route_probe"]
+    assert probe["evidence_source"].startswith("path-b commit 137575f")
     assert probe["status"] == "real_bounded_non_runtime_probe"
-    assert probe["queries_returned_http_200"] == 4
+    assert set(probe["query_profiles"]) == {"light_goods", "rigid_truck", "emergency"}
+    assert probe["queries_returned_http_200"] == 6
+    assert probe["extract_retrieval_utc"]["authoritative_clock"] == (
+        "local_shell_clock_not_cached_http_date"
+    )
+    assert probe["retained_pbf_outside_git"] is True
+    assert probe["retained_pbf_path"].endswith("north-eastern-zone-260909.osm.pbf")
+    assert probe["raw_receipts"]["info_response"] == "raw_info.json"
+    assert probe["raw_receipts"]["route_responses"] == 6
+    assert probe["raw_receipts"]["response_hashes_recorded"] is True
+    assert len(probe["receipt_hashes"]) == 3
+    assert probe["query_timestamps_utc"]
     assert probe["approximate_endpoints"] is True
     assert probe["nh6_waypoint_biased"] is True
-    assert probe["receipt_form"] == "aggregated_path_details_and_recorded_provenance"
+    assert probe["receipt_form"] == (
+        "raw_info_and_six_route_responses_with_sha256_index_and_aggregated_summary"
+    )
     assert probe["does_not_establish"]
 
     for source in manifest["sources"]:
@@ -96,7 +110,7 @@ def test_audit_checklist_covers_required_m0_inputs():
         "fallback",
         "Conservative default: **false**",
         "P0 BLOCKED",
-        "Bounded real probe evidence (Path B commit `26c6e39`)",
+        "Bounded real probe evidence (Path B commit `137575f`)",
     ):
         assert required_fact in audit
 
@@ -112,9 +126,16 @@ def test_structural_completeness_does_not_grant_p0_readiness():
     # Missing facts remain blockers; the test must fail if evidence is silently
     # converted into a readiness pass.
     assert "P0 BLOCKED — do not start A-M1-01" in audit
-    assert "Four queries returned HTTP 200 with a path" in audit
-    assert "exact project profiles" in audit
-    assert "aggregated/self-attested receipts" in audit
-    assert "waypoint bias for NH-6" in audit
+    assert "Six HTTP 200 `/route` receipts" in audit
+    assert "raw_info.json" in audit
+    assert "Receipt hashes" in audit
+    assert "exact project-specific `light_goods`" in audit
+    assert "exact `light_goods`, `rigid_truck`, and `emergency` profiles" not in audit.split(
+        "## 11. P0 decision record", maxsplit=1
+    )[1]
+    assert "aggregated/self-attested receipts" not in audit
+    assert "NH-6 path is waypoint-biased" in audit
+    assert "restriction detail is not exposed" in audit
+    assert "no operational graph import" in audit
     assert "A named status authority and evidence reviewer" in audit
     assert "A permitted positive-event and passability/ground-truth ledger path" in audit
