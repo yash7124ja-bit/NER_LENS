@@ -42,6 +42,8 @@
 
 **Terra P0 — evidence and safety feasibility, before M1 implementation.** Pass only when the team has a dated corridor/graph audit, two route hypotheses with restriction checks, a named status authority and evidence reviewer, source access/terms and replay fallbacks, a positive-event/ground-truth plan, and an essential-medicine mission. Fail means stop or change corridor; do not compensate with fabricated data.
 
+**Replay exception:** `docs/decisions/hackathon-replay-track.md` may time-box only the task IDs it explicitly names. It does not pass Terra P0, authorize pilot/live use, or relax evidence/status/recommendation safety rules.
+
 **Terra P1 — operational release safety, before M6 release or any conditional model promotion.** Pass only when route replay has zero applicable closure/vehicle violations, status provenance is reconstructible, stale/failed feeds abstain or degrade honestly, auth scope tests pass, offline controlled sync has zero loss and duplicate canonical records, alert templates are reviewed, backups restore, and model claims are baseline-relative with blocked evaluation. P1 failure blocks release and requires rollback to the last passing baseline.
 
 ## Milestones and tasks

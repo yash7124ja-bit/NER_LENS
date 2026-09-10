@@ -260,7 +260,7 @@ M0 evidence/audit work may begin only when all of these are true:
 - the human accepts the final seven specifications and Sol/human creates their first shared baseline commit; an unborn or uncommitted tree cannot seed worktrees;
 - the human project owner authorizes M0 evidence/audit work.
 
-Runtime implementation begins only after M0 additionally preserves a dated official SIH-26002 snapshot and requirement diff (or signed risk acceptance), accepts the corridor/source/authority/label/route-policy audits, freezes the M0 contracts, and passes Terra P0. A full-SIH release additionally requires a named client repository and client owner; without them, release claims remain backend-only.
+Pilot/live runtime implementation begins only after M0 additionally preserves a dated official SIH-26002 snapshot and requirement diff (or signed risk acceptance), accepts the corridor/source/authority/label/route-policy audits, freezes the M0 contracts, and passes Terra P0. The bounded replay-only exception in `decisions/hackathon-replay-track.md` may authorize only its named tasks without changing the P0 result. A full-SIH release additionally requires a named client repository and client owner; without them, release claims remain backend-only.
 
 ## 13. Exact next actions after authorization
 
