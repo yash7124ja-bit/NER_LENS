@@ -1,0 +1,42 @@
+{
+  "fixture_set": "a-m0-01",
+  "provenance": "synthetic_contract_cases_only",
+  "not_live_validation": true,
+  "cases": [
+    {
+      "case_id": "licensed_replay_metadata",
+      "source_id": "SRC-OSM",
+      "mode": "replay",
+      "terms": "ODbL_1.0_attribution_and_share_alike",
+      "expected": "accept_metadata_only"
+    },
+    {
+      "case_id": "private_partner_record",
+      "source_id": "SRC-FIELD",
+      "mode": "partner_dependent",
+      "terms": "not_obtained",
+      "expected": "reject_until_written_permission_and_consent"
+    },
+    {
+      "case_id": "unlicensed_raw_payload",
+      "source_id": "SRC-UNKNOWN",
+      "mode": "inaccessible",
+      "terms": "unknown",
+      "expected": "reject"
+    },
+    {
+      "case_id": "risk_not_status",
+      "source_id": "SRC-IMD",
+      "mode": "replay",
+      "terms": "attribution_and_access_terms_unverified",
+      "expected": "hazard_context_only_no_status_transition"
+    },
+    {
+      "case_id": "planned_road_not_open",
+      "source_id": "SRC-NHIDCL",
+      "mode": "replay",
+      "terms": "reuse_terms_unverified",
+      "expected": "context_only_no_open_edge"
+    }
+  ]
+}
