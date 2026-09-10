@@ -1,0 +1,131 @@
+{
+  "manifest_id": "a-m0-01-source-terms",
+  "task_id": "A-M0-01",
+  "created_at": "2026-09-10T00:00:00Z",
+  "status": "blocked_p0",
+  "corridor_alias": "guwahati_silchar_nh27",
+  "source_policy": "metadata_only_no_raw_private_or_unlicensed_payloads",
+  "sources": [
+    {
+      "source_id": "SRC-OSM",
+      "kind": "road_graph",
+      "url": "https://download.geofabrik.de/asia/india.html",
+      "access": "direct",
+      "terms": "ODbL_1.0_attribution_and_share_alike",
+      "observed": "2026-09-10",
+      "fixture_mode": "replay",
+      "health": "not_imported",
+      "required_before_runtime": "dated_pbf_checksum_and_graphhopper_route_run"
+    },
+    {
+      "source_id": "SRC-NHIDCL",
+      "kind": "corridor_reference",
+      "url": "https://www.nhidcl.com/en/assam/corridors",
+      "access": "direct",
+      "terms": "reuse_terms_unverified",
+      "observed": "2026-09-10",
+      "fixture_mode": "replay",
+      "health": "metadata_only",
+      "required_before_runtime": "authority_cross_reference_and_terms_record"
+    },
+    {
+      "source_id": "SRC-NHAI",
+      "kind": "corridor_reference",
+      "url": "https://nhai.gov.in/nhai/sites/default/files/tender/OtherDocuments/4_Annexure_1.pdf",
+      "access": "inaccessible",
+      "terms": "unknown",
+      "observed": "2026-09-10",
+      "fixture_mode": "inaccessible",
+      "health": "unverified",
+      "required_before_runtime": "independent_retrieval_or_replacement_source"
+    },
+    {
+      "source_id": "SRC-IMD",
+      "kind": "weather_warning_and_rainfall",
+      "url": "https://mausam.imd.gov.in/responsive/apis.php",
+      "access": "direct_docs_account_or_allowlist_for_api",
+      "terms": "attribution_and_access_terms_unverified",
+      "observed": "2026-09-10",
+      "fixture_mode": "replay",
+      "health": "not_authorized",
+      "required_before_runtime": "allowlist_credentials_cadence_and_terms"
+    },
+    {
+      "source_id": "SRC-GSI",
+      "kind": "landslide_inventory_and_susceptibility",
+      "url": "https://bhusanket.gsi.gov.in/",
+      "access": "portal_manual",
+      "terms": "machine_access_and_redistribution_unverified",
+      "observed": "2026-09-10",
+      "fixture_mode": "replay",
+      "health": "metadata_only",
+      "required_before_runtime": "download_terms_geometry_date_and_validation_fields"
+    },
+    {
+      "source_id": "SRC-CWC",
+      "kind": "river_and_flood_context",
+      "url": "https://ffs.india-water.gov.in/",
+      "access": "portal_manual",
+      "terms": "api_and_redistribution_unverified",
+      "observed": "2026-09-10",
+      "fixture_mode": "replay",
+      "health": "unverified",
+      "required_before_runtime": "supported_access_and_cadence"
+    },
+    {
+      "source_id": "SRC-ASDMA",
+      "kind": "flood_reports_and_reviewer_outreach",
+      "url": "https://asdma.assam.gov.in/information-services/assam-flood-report",
+      "access": "direct_manual",
+      "terms": "reuse_and_automation_unverified",
+      "observed": "2026-09-10",
+      "fixture_mode": "replay",
+      "health": "metadata_only",
+      "required_before_runtime": "written_partner_or_terms_approval"
+    },
+    {
+      "source_id": "SRC-SACHET",
+      "kind": "official_cap_alert_context",
+      "url": "https://sachet.ndma.gov.in/",
+      "access": "direct_portal_or_rss",
+      "terms": "rss_and_redistribution_unverified",
+      "observed": "2026-09-10",
+      "fixture_mode": "replay",
+      "health": "metadata_only",
+      "required_before_runtime": "feed_terms_and_fixture_provenance"
+    },
+    {
+      "source_id": "SRC-AUTH",
+      "kind": "operational_status",
+      "url": null,
+      "access": "partner",
+      "terms": "not_obtained",
+      "observed": "2026-09-10",
+      "fixture_mode": "synthetic",
+      "health": "missing",
+      "required_before_runtime": "named_authority_jurisdiction_and_expiry_rights"
+    },
+    {
+      "source_id": "SRC-FIELD",
+      "kind": "reviewed_ground_truth",
+      "url": null,
+      "access": "partner",
+      "terms": "consent_and_review_protocol_missing",
+      "observed": "2026-09-10",
+      "fixture_mode": "synthetic",
+      "health": "missing",
+      "required_before_runtime": "partner_reviewer_safety_and_terms"
+    },
+    {
+      "source_id": "SRC-GPS",
+      "kind": "mission_progress",
+      "url": null,
+      "access": "partner_or_explicit_consent",
+      "terms": "purpose_retention_and_consent_missing",
+      "observed": "2026-09-10",
+      "fixture_mode": "replay",
+      "health": "missing",
+      "required_before_runtime": "mission_owner_device_and_consent_basis"
+    }
+  ]
+}
