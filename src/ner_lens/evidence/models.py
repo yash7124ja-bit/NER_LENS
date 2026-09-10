@@ -66,3 +66,31 @@ class Evidence(Base):
     association_method: Mapped[str | None] = mapped_column(String(32))
     association_distance_m: Mapped[float | None] = mapped_column()
     supersedes_evidence_id: Mapped[str | None] = mapped_column(ForeignKey("evidence.id"))
+
+
+class EvidenceReview(Base):
+    __tablename__ = "evidence_review"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    evidence_id: Mapped[str] = mapped_column(ForeignKey("evidence.id"), nullable=False, index=True)
+    actor_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
+    note: Mapped[str] = mapped_column(String(2000), nullable=False)
+    merge_into_evidence_id: Mapped[str | None] = mapped_column(ForeignKey("evidence.id"))
+    resulting_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    request_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    before_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    after_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    audit_event_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ReviewIdempotency(Base):
+    __tablename__ = "review_idempotency"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    actor_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    review_id: Mapped[str] = mapped_column(ForeignKey("evidence_review.id"), nullable=False)
