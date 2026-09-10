@@ -6,14 +6,20 @@
   "corridor_alias": "guwahati_silchar_nh27",
   "source_policy": "metadata_only_no_raw_private_or_unlicensed_payloads",
   "real_route_probe": {
-    "evidence_source": "path-b commit 137575f data/corridor/graphhopper/real_evidence/v2",
-    "status": "real_bounded_non_runtime_probe",
+    "evidence_source": "path-b commit 42c9205 data/corridor/graphhopper/real_evidence/v3",
+    "status": "real_bounded_non_runtime_probe_v3",
+    "supersedes": "path-b v2 evidence (superseded; do not cite as current)",
+    "terra_routing_subgate": {
+      "status": "pass_bounded_routing_only",
+      "verdict_commit": "42c9205",
+      "m1_authorization": false
+    },
     "extract_url": "https://download.geofabrik.de/asia/india/north-eastern-zone-260909.osm.pbf",
     "extract_data_as_of": "2026-09-09T20:21:20Z",
     "extract_sha256": "9250938dd6e8c61ad3ca533620a86c5d286e86f60c2bc45086e173f2ace068a9",
     "extract_retrieval_utc": {
-      "before": "2026-09-10T05:49:57Z",
-      "after": "2026-09-10T05:51:56Z",
+      "before": "reused_v2_verified_extract",
+      "after": "reverified_2026-09-10T06:38:09Z",
       "authoritative_clock": "local_shell_clock_not_cached_http_date"
     },
     "retained_pbf_path": "D:\\SIH-2026\\NER_LENS_ARTIFACTS\\m0\\north-eastern-zone-260909.osm.pbf",
@@ -24,29 +30,50 @@
       "rigid_truck",
       "emergency"
     ],
-    "queries_returned_http_200": 6,
+    "queries_returned_http_200": 27,
+    "all_six_audit_band_endpoints_represented": true,
+    "route_query_groups": {
+      "nh27_control_direct": 3,
+      "nh27_via_bands_threaded_candidate": 3,
+      "nh27_independent_band_legs": 18,
+      "nh6_waypoint_biased_alternative": 3
+    },
     "route_hypotheses_queried": ["guwahati_silchar_nh27", "guwahati_silchar_nh6"],
     "raw_receipts": {
       "info_response": "raw_info.json",
-      "route_responses": 6,
+      "route_responses": 27,
       "response_index": "response_index.json",
       "response_hashes_recorded": true,
-      "summary_hash_recorded": true
+      "summary_hash_recorded": true,
+      "corridor_edge_mapping": "corridor_edge_mapping.json"
     },
     "receipt_hashes": {
-      "raw_info_sha256": "109b3a30745692ce57a1550bdc7eb58f1c67307a64221335c58c8e4fc3e5d637",
-      "response_index_sha256": "a9b2c38f00f82042a0041d710fd8c58868a8b42368e91f617088258c337f81ca",
-      "result_summary_sha256": "7eafd03f5b7be84ee6c9ab6310ad0217fc3bd25f62a1fc4d8044e309f331b97f"
+      "raw_info_sha256": "ddb9eb43a19ffd8e4faf02af217ff9f03b43db574e699f09171aa611f0872a6e",
+      "response_index_sha256": "339ebe97b55cb21388d3d98b7f14dcde6fba08978cda46984e1e356030f3b7c5",
+      "result_summary_sha256": "4f4dc4bf0b50a8d41c19e66acacaabf205bc3d83701a9b681f5c925a358a0f26",
+      "corridor_edge_mapping_sha256": "1370d2c15b3066063390d28d530b16c0661f45e3ed30c664260fa3ea1f331bec"
     },
-    "query_timestamps_utc": "2026-09-10T05:56:48Z to 2026-09-10T05:56:49Z",
+    "query_timestamps_utc": "2026-09-10T06:37:53Z to 2026-09-10T06:37:57Z",
     "approximate_endpoints": true,
     "nh6_waypoint_biased": true,
-    "receipt_form": "raw_info_and_six_route_responses_with_sha256_index_and_aggregated_summary",
+    "receipt_form": "raw_info_and_27_route_responses_with_sha256_index_aggregate_and_band_mapping",
+    "hard_exclusions": {
+      "rigid_truck": [
+        "hgv_DELIVERY",
+        "hgv_DESTINATION",
+        "road_access_PRIVATE",
+        "no_max_weight_except_bypass"
+      ],
+      "all_profiles": "no_unauthorized_max_weight_except_bypass"
+    },
+    "bounded_conclusion": "Dated 2026-09-09 OSM plus GraphHopper 11 represents all six audit-band endpoints for all three profiles; evidence is mixed refs with hill-band preference divergence and NH-6 waypoint bias; no current passability, legal, status, or recommendation claim.",
     "does_not_establish": [
       "stable_operational_segment_ids",
-      "named_highway_continuity_or_current_passability",
+      "single_continuous_nh27_way_or_named_highway_continuity",
+      "named_highway_current_passability_or_legal_status",
       "turn_restriction_detail_or_complete_direction_legality_review",
       "operational_graph_import_or_ongoing_monitoring",
+      "current_status_or_route_recommendation",
       "authority_reviewer_source_terms_labels_mission_consent_or_policy_owner"
     ]
   },
@@ -92,7 +119,7 @@
       "terms": "release_and_model_terms_unverified_for_operational_deployment",
       "observed": "2026-09-10",
       "fixture_mode": "replay",
-      "health": "real_probe_only",
+      "health": "real_probe_v3_routing_subgate_only",
       "required_before_runtime": "operational_graph_import_segment_mapping_restriction_review_and_operational_adapter_review"
     },
     {

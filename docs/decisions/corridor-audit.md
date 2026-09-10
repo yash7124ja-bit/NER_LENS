@@ -3,7 +3,7 @@
 **Audit date:** 2026-09-10 (Asia/Calcutta)
 **Owner:** Path A (GPT-5.6 Luna)
 **Reviewer:** Sol (pending review)
-**Gate:** Terra P0 (not passed)
+**Gate:** Terra P0 (not passed; routing sub-gate PASS only)
 **Status:** `BLOCKED — provisional corridor retained; runtime work must not start`
 
 This is an evidence ledger, not a route or model result. A fact is marked
@@ -16,19 +16,27 @@ explicitly present in the local control documents. `assumption`, `inaccessible`,
 | Item | Decision | Evidence state |
 |---|---|---|
 | Working corridor | Keep `guwahati_silchar_nh27` as a provisional hypothesis | A bounded real probe returned a path between approximate Guwahati/Silchar points; no operational graph or legality approval |
-| Candidate alternative | Keep `guwahati_silchar_nh6` via Shillong–Jowai–Panchgram/Silchar as a hypothesis | Six exact-profile queries returned paths; NH-6 remains waypoint-biased and current-access/construction/legality review is open |
-| Routability | **Bounded query paths established; corridor feasibility not approved** | Path B's real probe returned HTTP 200 for NH-27 direct and NH-6 waypoint-biased paths using exact `light_goods`, `rigid_truck`, and `emergency` profiles |
-| Restriction audit | **Partial real evidence; operational restriction audit remains open** | Raw path receipts show bridges/tunnels, NH-6 ford evidence, and missing `hgv`/`maxheight`/`maxweight`; turn/direction, stable segments, authority, and current legality remain unresolved |
+| Candidate alternative | Keep `guwahati_silchar_nh6` via Shillong–Jowai–Panchgram/Silchar as a hypothesis | Three exact-profile queries returned paths; NH-6 remains waypoint-biased and current-access/construction/legality review is open |
+| Routability | **Routing sub-gate PASS — bounded evidence only** | Path B v3 provides 27 checksummed receipts for all three exact profiles, including the six-band NH-27 candidate and NH-6 alternative; this does not authorize M1 |
+| Restriction audit | **Partial real evidence; operational restriction audit remains open** | v3 records mixed road refs, hard-exclusion model rules, bridge/tunnel/ford observations, and hill-band preference divergence; turn/detail, current legality, authority, and status remain unresolved |
 | Operational status authority | **Unassigned** | `district_officer` is a contract role, not a named authority or partner |
 | Evidence reviewer | **Unassigned** | ASDMA/NHAI/NHIDCL contacts are outreach candidates only, not approvals |
 | Positive-event path | **Candidate sources identified; label ledger absent** | GSI/ASDMA/CWC/SACHET/authority reports need segment/time/review validation |
 | Mission | Synthetic essential-medicine mission hypothesis only | No partner, consent, vehicle, or live GPS evidence |
 | Route policy | Conservative unresolved policy | Numeric age/coverage thresholds and approving owner are not available |
 
+**Routing sub-gate conclusion:** Terra's bounded routing verdict is PASS at
+Path B commit `42c9205`. Dated 2026-09-09 OSM plus GraphHopper 11 represents
+all six audit-band endpoints for all three profiles, with mixed road refs,
+hill-band preference divergence, and NH-6 waypoint bias. This establishes no
+current passability, legal, status, or recommendation claim, and the routing
+sub-gate PASS does not authorize M1.
+
 **P0 conclusion:** Do not begin A-M1-01. Terra P0 cannot sign this audit until
-the missing route, authority, terms, label, mission, and policy-owner evidence
-is supplied. This is an explicit stop/redirect outcome, not a claim that either
-candidate is infeasible.
+the remaining operational graph/segment and restriction evidence, plus the
+authority, terms, label, mission, and policy-owner evidence, is supplied. This
+is an explicit stop/redirect outcome, not a claim that either candidate is
+infeasible.
 
 ## 2. Candidate corridor hypotheses
 
@@ -39,15 +47,16 @@ Nagaon–Doboka, Doboka–Lanka–Lumding, Lumding–Maibang,
 Maibang–Harangajao/Balachera, and Balachera–Silchar. NHIDCL's Assam page,
 retrieved 2026-09-10, lists `Daboka-Lahorijan` and `Balachera - Harangajao
 NH-27(New)` among Assam corridors. That verifies that the official page contains
-related corridor project entries. Path B's bounded real probe also returned an
-HTTP 200 GraphHopper path between approximate town-level endpoints; it does
-**not** verify named-highway continuity, current passability, legal access, or
-authorized operational suitability for any exact vehicle profile. The NHAI
-annexure URL listed by the blueprint was not
+related corridor project entries. Path B's v3 bounded real probe represents all
+six audit-band endpoints for all three exact profiles, using a labelled direct
+control, a threaded band query, and independent per-band legs. Its NH-27
+candidate is a mixed road-ref result, not a single named highway; it does
+**not** verify current passability, legal access, status, or recommendation.
+The NHAI annexure URL listed by the blueprint was not
 retrievable in the research browser.
 
-**Route status:** bounded query path only; provisional hypothesis; no
-recommendation permitted.
+**Route status:** bounded mixed-road evidence; provisional hypothesis; no
+current passability/legal/status/recommendation claim permitted.
 
 ### Candidate B — NH-6 direction via Meghalaya to Silchar
 
@@ -59,22 +68,24 @@ strategic connection is not evidence that a road is presently routable. Planned
 or under-construction infrastructure must not be inserted as an open edge.
 
 **Route status:** waypoint-biased query path only; provisional hypothesis; no
-recommendation permitted.
+current passability/legal/status/recommendation claim permitted.
 
 ## 3. Six audit bands and geometry status
 
-These are named audit bands from the technical blueprint, not imported segment
-records. Internal IDs, geometry, direction, authority, chainage, and graph-edge
-mapping remain unassigned until the dated graph audit.
+These are named audit bands from the technical blueprint. Path B v3 now
+represents every band endpoint for all three exact profiles with independent
+leg receipts and a threaded consistency check. The results are still not
+operational segment records: internal IDs, authority, chainage, and backend
+graph-edge mapping remain unassigned.
 
 | Band | Name | Required graph check | Current state |
 |---:|---|---|---|
-| 1 | Guwahati/Jalukbari–Nagaon | primary/alternative edge mapping and access | `unverified` |
-| 2 | Nagaon–Doboka | road class, construction, direction | `unverified` |
-| 3 | Doboka–Lanka–Lumding | vehicle restrictions and alternate edge mapping | `unverified` |
-| 4 | Lumding–Maibang | hill-road topology, surface, bridge constraints | `unverified` |
-| 5 | Maibang–Harangajao/Balachera hill section | bridge/tunnel, `maxweight`, `maxheight`, `hgv`, construction | `unverified` |
-| 6 | Balachera–Silchar | final approach, access and authority boundary | `unverified` |
+| 1 | Guwahati/Jalukbari–Nagaon | primary/alternative edge mapping and access | `bounded v3 receipt; mixed refs; no operational IDs` |
+| 2 | Nagaon–Doboka | road class, construction, direction | `bounded v3 receipt; mixed refs; no operational IDs` |
+| 3 | Doboka–Lanka–Lumding | vehicle restrictions and alternate edge mapping | `bounded v3 receipt; mixed refs; no operational IDs` |
+| 4 | Lumding–Maibang | hill-road topology, surface, bridge constraints | `bounded v3 receipt; mixed refs; no operational IDs` |
+| 5 | Maibang–Harangajao/Balachera hill section | bridge/tunnel, `maxweight`, `maxheight`, `hgv`, construction | `bounded v3 receipt; profile preference divergence; no operational IDs` |
+| 6 | Balachera–Silchar | final approach, access and authority boundary | `bounded v3 receipt; mixed refs; no operational IDs` |
 
 **Required extraction boundary:** 5 km route buffer around both candidate
 hypotheses; 20 km hazard-context buffer, expanded only after hydrological
@@ -90,61 +101,77 @@ and administrative data import.
 | Check | Evidence required | Result |
 |---|---|---|
 | Current graph extract | Dated Geofabrik/OSM North-Eastern Zone PBF plus SHA-256 | **Established for bounded probe:** `north-eastern-zone-260909.osm.pbf`, OSM data as of `2026-09-09T20:21:20Z`, SHA-256 recorded in Path B evidence |
-| Two candidate route results | GraphHopper output with graph version and edge IDs | **Partial:** six HTTP 200 queries in GraphHopper 11.0 using all three exact project profiles; NH-27 direct and NH-6 waypoint-biased; no stable application edge IDs |
-| Topology/continuity | Connected path from selected origin to selected destination | **Query paths returned** for approximate points; not named-highway or surveyed-endpoint confirmation |
-| Surface/road class/lanes | OSM tags reviewed per candidate | **Raw receipts plus aggregated summary available**; no complete band/segment audit |
+| Two candidate route results | GraphHopper output with graph version and edge IDs | **Routing sub-gate PASS (bounded):** 27 checksummed HTTP 200 receipts in GraphHopper 11.0 using all three exact profiles; no stable operational application edge IDs |
+| Topology/continuity | Connected path from selected origin to selected destination | **All six audit-band endpoints represented** by independent legs and a threaded NH-27 query; NH-27 refs are mixed, NH-6 remains waypoint-biased, and endpoints are not surveyed facilities |
+| Surface/road class/lanes | OSM tags reviewed per candidate | **Raw receipts plus corridor-edge mapping available**; no operational segment import |
 | Bridges/tunnels/approaches | Typed segment mapping and structure constraints | Bridges/tunnels observed in path details; no typed operational segment import |
 | `maxheight`/`maxweight`/`hgv` | Per-profile applicability for `light_goods`, `rigid_truck`, `emergency` | Exact profiles were run; `hgv` was missing and height/weight unset on returned paths |
-| Access/direction/turns | Graph profile and restriction audit | Access values were summarized; turn tables and complete direction legality remain unaudited |
+| Access/direction/turns | Graph profile and restriction audit | v3 hard-excludes rigid-truck `hgv=DELIVERY`, `hgv=DESTINATION`, and `road_access=PRIVATE`; no such tags were encountered in this extract, and turn tables/complete direction legality remain unaudited |
 | Construction/planned road handling | Current tag review; planned edges excluded | No `CONSTRUCTION` segment encountered in returned paths; planned-road authority review remains open |
 | Authority cross-reference | NHAI/NHIDCL references mapped to bands | **Partial page evidence only** |
 | Positive event/field review path | At least one usable, reviewable event path | **Not established** |
 
-The real probe narrows the uncertainty but is not a corridor approval. It was
-one dated run with approximate points, raw hashed receipts, a waypoint bias for
-NH-6, and exact project profiles whose encoded constraints still need an
-operational restriction review. The corridor remains provisional until stable
-segment mapping, operational graph import, restriction/authority review, and
-the remaining P0 evidence are accepted.
+The v3 routing run narrows the routing uncertainty but is not a corridor
+approval. Dated 2026-09-09 OSM plus GraphHopper 11 represents all six audit-band
+endpoints for all three profiles with 27 checksummed receipts. The NH-27
+candidate contains mixed road refs, band 5 has profile-dependent routing
+preference divergence, and NH-6 remains waypoint-biased. No current
+passability, legal, status, or recommendation claim follows. The corridor
+remains provisional until operational graph/segment mapping, restriction and
+authority review, and the remaining P0 evidence are accepted.
 
-### 4a. Bounded real probe evidence (Path B commit `137575f`)
+### 4a. Bounded real probe evidence (Path B commit `42c9205`, v3 current)
 
-Path B recorded a one-time, non-runtime GraphHopper run in
-`data/corridor/graphhopper/real_evidence/v2/`. The evidence is referenced
-here; the Path A worktree does not copy Path B files.
+Path B v3 is the current authoritative real-evidence layer in
+`data/corridor/graphhopper/real_evidence/v3/`. The v2 layer is superseded and
+must not be cited as current. V3 corrects the rigid-truck conditional/private
+access treatment and distinguishes the unconstrained direct query as a control
+only; it does not alter the overall A-M0-01 P0 decision.
 
 | Field | Recorded value |
 |---|---|
-| Extract | `https://download.geofabrik.de/asia/india/north-eastern-zone-260909.osm.pbf` |
-| OSM data as of | `2026-09-09T20:21:20Z` |
-| Extract retrieval | Local shell clock `2026-09-10T05:49:57Z` to `2026-09-10T05:51:56Z`; HTTP cache headers retained as informational only |
-| Extract SHA-256 | `9250938dd6e8c61ad3ca533620a86c5d286e86f60c2bc45086e173f2ace068a9` |
-| Retained PBF | `D:\SIH-2026\NER_LENS_ARTIFACTS\m0\north-eastern-zone-260909.osm.pbf` outside git; same SHA-256 retained after route run |
-| Router | GraphHopper `11.0`, official release; non-runtime scratch run |
+| Extract | `https://download.geofabrik.de/asia/india/north-eastern-zone-260909.osm.pbf`; OSM data as of `2026-09-09T20:21:20Z` |
+| Extract SHA-256 / retained path | `9250938dd6e8c61ad3ca533620a86c5d286e86f60c2bc45086e173f2ace068a9`; `D:\SIH-2026\NER_LENS_ARTIFACTS\m0\north-eastern-zone-260909.osm.pbf` outside git, reverified before/after v3 |
+| Router | GraphHopper `11.0`, official release; one-time non-runtime scratch run |
 | Profiles | Exact project-specific `light_goods` (3.5 t / 2.5 m), `rigid_truck` (16.0 t / 3.8 m), and `emergency` (7.5 t / 3.0 m) models |
-| Queries | Six HTTP 200 `/route` receipts: NH-27 direct and NH-6 via Shillong/Jowai waypoints, each for all three exact profiles |
-| Endpoints | Approximate town-level points, not surveyed warehouse/receiving endpoints |
-| Receipt form | `raw_info.json` plus six verbatim raw `/route` responses, response index with SHA-256 values, query timestamps, and hashed aggregate summary; receipts are committed in Path B only |
-| Receipt hashes | `/info` `109b3a30745692ce57a1550bdc7eb58f1c67307a64221335c58c8e4fc3e5d637`; response index `a9b2c38f00f82042a0041d710fd8c58868a8b42368e91f617088258c337f81ca`; summary `7eafd03f5b7be84ee6c9ab6310ad0217fc3bd25f62a1fc4d8044e309f331b97f` |
-| Route query timestamps | Local shell clock `2026-09-10T05:56:48Z` to `2026-09-10T05:56:49Z` |
+| Receipts | **27 checksummed HTTP 200 `/route` receipts** plus raw `/info`: 3 direct-control, 3 threaded NH-27 via-bands, 18 independent NH-27 band legs, and 3 NH-6 waypoint-biased queries |
+| Band coverage | All six audit-band endpoints represented for all three profiles; the six independent leg distances equal the threaded via-bands distance for each profile |
+| Receipt hashes | `/info` `ddb9eb43a19ffd8e4faf02af217ff9f03b43db574e699f09171aa611f0872a6e`; response index `339ebe97b55cb21388d3d98b7f14dcde6fba08978cda46984e1e356030f3b7c5`; summary `4f4dc4bf0b50a8d41c19e66acacaabf205bc3d83701a9b681f5c925a358a0f26`; edge mapping `1370d2c15b3066063390d28d530b16c0661f45e3ed30c664260fa3ea1f331bec` |
+| Query window | Local shell clock `2026-09-10T06:37:53Z` to `2026-09-10T06:37:57Z` |
 
-Observed results (distance / duration): NH-27 `light_goods` 298.612 km /
-15,908 s; `rigid_truck` 302.454 km / 17,557 s; `emergency` 299.828 km /
-15,831 s. NH-6 waypoint-biased `light_goods` 307.313 km / 16,668 s;
-`rigid_truck` 309.412 km / 18,417 s; `emergency` 308.572 km / 16,580 s.
-The raw path details show bridges and tunnels on both route hypotheses, one
-NH-6 ford, no `CONSTRUCTION` road class, and missing `hgv` plus unset
-`max_height`/`max_weight` values. All six responses reported no routing
-errors. These are probe observations, not current passability or legality
-findings.
+The unconstrained `nh27_control_direct` query is **control-only**, not NH-27
+corridor proof: it is dominated by NH6/NH37/SH38/SH-023 refs with NH27 only
+about 2.1% of distance. The actual NH-27 candidate is the threaded query
+through all six audited band endpoints, supported by six independent per-band
+legs. Its measured NH27-ref share is 45.4% for `light_goods` and 60.6% for
+`rigid_truck`/`emergency`, with other named and unnamed roads also present.
+This is mixed-road evidence, not a single continuous NH27 way. On band 5
+(Maibang–Harangajao/Balachera hill), `light_goods` takes a materially shorter
+path than `rigid_truck`/`emergency`; the evidence attributes this to routing
+preference (`distance_influence`), not a legality exclusion. NH-6 remains
+waypoint-biased through Shillong and Jowai.
 
-Limitations that remain explicit: the NH-6 path is waypoint-biased; turn
-restriction detail is not exposed by the path-details API; this is one dated
-run against one extract; no operational graph import or stable internal
+V3 hard-excludes `hgv=DELIVERY`, `hgv=DESTINATION`, and
+`road_access=PRIVATE` for `rigid_truck`, and removes the unauthorized
+`max_weight_except` bypass; the same max-weight correction is applied to all
+three profiles. These tags were not encountered in the queried extract, so
+the fix is conservative model correctness, not end-to-end exercise of those
+conditions. `hgv` remained missing and `max_height`/`max_weight` unset on the
+returned paths; no `CONSTRUCTION` segment or routing error was observed.
+
+**Terra routing sub-gate conclusion:** the dated 2026-09-09 OSM plus
+GraphHopper 11 evidence represents all six audit-band endpoints for all three
+profiles, with mixed refs, hill-band preference divergence, and NH-6 waypoint
+bias. It makes no current passability, legal, status, or recommendation
+claim. Terra's routing sub-gate PASS is bounded evidence only and does not
+authorize M1.
+
+Limitations that remain explicit: this is one dated run against one extract;
+turn-restriction tables are not exposed; OSM way IDs are not obtainable from
+this GraphHopper API surface; no operational graph import or stable internal
 segment IDs were established; and authority/reviewer, source terms, labels,
-mission/consent, and policy-owner thresholds remain missing. Exact profile
-receipts do not establish named-highway continuity, current passability,
-authorized operational status, or a `RouteVerificationPolicy` outcome.
+mission/consent, positive-event/ground-truth review, and policy-owner
+thresholds remain missing. No route here is operationally verified.
 
 ## 5. Source and terms ledger
 
@@ -157,7 +184,7 @@ no raw private or unlicensed payload is committed here.
 |---|---|---|---|---|---|
 | SRC-SIH | SIH-26002 requirement traceability | Direct official dynamic page | Page exposes PS 26002 and requirements for roads, routes, GPS, alerts, field reports, dashboards, multilingual/offline support | Local snapshot/diff is not preserved by this task; official traceability remains Sol's S-M0-01 dependency | Local dossier is `provisional research`, not an official snapshot |
 | SRC-OSM | Base graph and restrictions | Direct; dated North-Eastern Zone extract used by Path B probe; ODbL | `north-eastern-zone-260909.osm.pbf`, OSM data as of 2026-09-09T20:21:20Z; SHA-256 recorded in section 4a | ODbL attribution/share-alike obligations apply; no private contributor metadata | Real probe only; stable operational graph import and segment mapping remain pending |
-| SRC-GRAPHHOPPER | Bounded route probe | Official GraphHopper 11.0 release used by Path B outside runtime | Six HTTP 200 queries using exact `light_goods`, `rigid_truck`, and `emergency` profiles; raw `/info` and `/route` receipts, hashes, and aggregate summary recorded in Path B v2 evidence | Operational adapter terms, stable segment import, and policy approval remain unverified | Reproduce from Path B commit `137575f`; no runtime claim |
+| SRC-GRAPHHOPPER | Bounded route probe | Official GraphHopper 11.0 release used by Path B outside runtime | V3 has 27 checksummed `/route` receipts using exact `light_goods`, `rigid_truck`, and `emergency` profiles, all six band endpoints, control/via-band/per-leg/NH-6 query roles, and corridor-edge mapping | Operational adapter terms, stable segment import, and policy approval remain unverified | Reproduce from Path B commit `42c9205`; v2 is superseded; no runtime claim |
 | SRC-NHIDCL | Official corridor/project cross-reference | Direct official Assam page | Page lists `Daboka-Lahorijan` and `Balachera - Harangajao NH-27(New)`; page last updated 2026-09-09 | Page terms and redistribution of copied project documents not validated | Store URL/title/date metadata; use replay fixture for parser tests |
 | SRC-NHAI | NH-27 section cross-reference | Inaccessible in this audit browser | URL is cited locally; PDF could not be fetched | Terms and content not independently checked | Use NHIDCL/Parliamentary sources only after independent retrieval; no copied PDF |
 | SRC-IMD | Warnings/rainfall/nowcast context | Direct docs; API access may require IP allowlisting | API index and reference pages list district warnings, rainfall, nowcast, highway warnings; docs require attribution and mention IP allowlisting | API credentials/allowlisting and use terms not granted | `replay` permitted/curated response; source health `unavailable_until_approved` |
@@ -288,14 +315,15 @@ version, and one of `live_approved|replay|synthetic|partner_dependent`.
 
 **Decision:** `P0 BLOCKED — do not start A-M1-01`
 **Recommended corridor action:** keep the two hypotheses configurable while
-running the dated graph/restriction audit; change corridor through an ADR if
-either candidate fails.
+the v3 bounded evidence is carried forward into the operational graph and
+review process; change corridor through an ADR if either candidate fails.
 
 Blocking evidence still required:
 
-1. The exact-profile bounded real probe and raw receipts are now recorded, but
-   stable segment IDs, an operational graph import/version, and reproducible
-   restriction mapping are still required.
+1. The v3 exact-profile bounded real probe, all six band endpoints, and 27 raw
+   receipts are now recorded; stable segment IDs, an operational graph
+   import/version, and reproducible operational restriction mapping are still
+   required.
 2. Restriction review covering topology, surface, bridge/tunnel, access,
    `maxheight`, `maxweight`, `hgv`, construction, turn, direction, and planned
    road exclusion, beyond the probe's path receipts and exposed path details.
@@ -325,7 +353,7 @@ local control documents were read from the branch at the start of this task.
 
 - [Official SIH 2026 problem statements](https://www.sih.gov.in/sih2026PS) — PS 26002 page reachable; official snapshot still pending S-M0-01.
 - [Geofabrik India downloads](https://download.geofabrik.de/asia/india.html) — North-Eastern Zone listing and ODbL notice reachable; dated extract evidence is recorded from Path B's bounded probe.
-- [GraphHopper profiles](https://github.com/graphhopper/graphhopper/blob/master/docs/core/profiles.md) — Path B used official 11.0 with exact project-specific `light_goods`, `rigid_truck`, and `emergency` models; operational approval remains pending.
+- [GraphHopper profiles](https://github.com/graphhopper/graphhopper/blob/master/docs/core/profiles.md) — Path B v3 used official 11.0 with exact project-specific `light_goods`, `rigid_truck`, and `emergency` models; routing sub-gate PASS is bounded and operational approval remains pending.
 - [NHIDCL Assam corridors](https://www.nhidcl.com/en/assam/corridors) — related corridor project entries visible; no passability claim.
 - [NHAI section annexure](https://nhai.gov.in/nhai/sites/default/files/tender/OtherDocuments/4_Annexure_1.pdf) — cited locally, inaccessible in the research browser.
 - [IMD API hub](https://mausam.imd.gov.in/responsive/apis.php) and [API reference](https://api.imd.gov.in/public/api_reference.html) — docs reachable; allowlisting/terms remain.

@@ -39,25 +39,43 @@ def test_manifest_has_required_fields_and_sources():
     assert manifest["source_policy"] == "metadata_only_no_raw_private_or_unlicensed_payloads"
     assert manifest["sources"]
     probe = manifest["real_route_probe"]
-    assert probe["evidence_source"].startswith("path-b commit 137575f")
-    assert probe["status"] == "real_bounded_non_runtime_probe"
+    assert probe["evidence_source"].startswith("path-b commit 42c9205")
+    assert probe["status"] == "real_bounded_non_runtime_probe_v3"
+    assert probe["supersedes"] == "path-b v2 evidence (superseded; do not cite as current)"
+    assert probe["terra_routing_subgate"]["status"] == "pass_bounded_routing_only"
+    assert probe["terra_routing_subgate"]["m1_authorization"] is False
     assert set(probe["query_profiles"]) == {"light_goods", "rigid_truck", "emergency"}
-    assert probe["queries_returned_http_200"] == 6
+    assert probe["queries_returned_http_200"] == 27
+    assert probe["all_six_audit_band_endpoints_represented"] is True
+    assert probe["route_query_groups"] == {
+        "nh27_control_direct": 3,
+        "nh27_via_bands_threaded_candidate": 3,
+        "nh27_independent_band_legs": 18,
+        "nh6_waypoint_biased_alternative": 3,
+    }
     assert probe["extract_retrieval_utc"]["authoritative_clock"] == (
         "local_shell_clock_not_cached_http_date"
     )
     assert probe["retained_pbf_outside_git"] is True
     assert probe["retained_pbf_path"].endswith("north-eastern-zone-260909.osm.pbf")
     assert probe["raw_receipts"]["info_response"] == "raw_info.json"
-    assert probe["raw_receipts"]["route_responses"] == 6
+    assert probe["raw_receipts"]["route_responses"] == 27
+    assert probe["raw_receipts"]["corridor_edge_mapping"] == "corridor_edge_mapping.json"
     assert probe["raw_receipts"]["response_hashes_recorded"] is True
-    assert len(probe["receipt_hashes"]) == 3
+    assert len(probe["receipt_hashes"]) == 4
     assert probe["query_timestamps_utc"]
     assert probe["approximate_endpoints"] is True
     assert probe["nh6_waypoint_biased"] is True
     assert probe["receipt_form"] == (
-        "raw_info_and_six_route_responses_with_sha256_index_and_aggregated_summary"
+        "raw_info_and_27_route_responses_with_sha256_index_aggregate_and_band_mapping"
     )
+    assert set(probe["hard_exclusions"]["rigid_truck"]) == {
+        "hgv_DELIVERY",
+        "hgv_DESTINATION",
+        "road_access_PRIVATE",
+        "no_max_weight_except_bypass",
+    }
+    assert "all six audit-band endpoints" in probe["bounded_conclusion"]
     assert probe["does_not_establish"]
 
     for source in manifest["sources"]:
@@ -110,7 +128,7 @@ def test_audit_checklist_covers_required_m0_inputs():
         "fallback",
         "Conservative default: **false**",
         "P0 BLOCKED",
-        "Bounded real probe evidence (Path B commit `137575f`)",
+        "Bounded real probe evidence (Path B commit `42c9205`, v3 current)",
     ):
         assert required_fact in audit
 
@@ -126,16 +144,22 @@ def test_structural_completeness_does_not_grant_p0_readiness():
     # Missing facts remain blockers; the test must fail if evidence is silently
     # converted into a readiness pass.
     assert "P0 BLOCKED — do not start A-M1-01" in audit
-    assert "Six HTTP 200 `/route` receipts" in audit
-    assert "raw_info.json" in audit
+    assert "27 checksummed HTTP 200 `/route` receipts" in audit
+    assert "all six audit-band endpoints" in audit
+    assert "control-only" in audit
+    assert "v2 layer is superseded" in audit
+    assert "hard-excludes" in audit
     assert "Receipt hashes" in audit
     assert "exact project-specific `light_goods`" in audit
     assert "exact `light_goods`, `rigid_truck`, and `emergency` profiles" not in audit.split(
         "## 11. P0 decision record", maxsplit=1
     )[1]
     assert "aggregated/self-attested receipts" not in audit
-    assert "NH-6 path is waypoint-biased" in audit
-    assert "restriction detail is not exposed" in audit
+    assert "NH-6 remains waypoint-biased" in audit
+    assert "hill-band preference divergence" in audit
+    assert "routing sub-gate PASS is bounded evidence only" in audit
+    assert "does not authorize M1" in audit
+    assert "turn-restriction tables are not exposed" in audit
     assert "no operational graph import" in audit
     assert "A named status authority and evidence reviewer" in audit
     assert "A permitted positive-event and passability/ground-truth ledger path" in audit
