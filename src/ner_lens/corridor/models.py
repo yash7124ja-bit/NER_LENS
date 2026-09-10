@@ -6,7 +6,7 @@ import json
 from datetime import datetime
 from typing import Any, ClassVar
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, validates
 from sqlalchemy.types import UserDefinedType
@@ -66,6 +66,11 @@ def _compile_geometry_for_replay(_type: Geometry4326, _compiler: Any, **_: Any) 
 
 class CorridorVersion(Base):
     __tablename__ = "corridor_version"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('draft', 'active', 'superseded')", name="ck_corridor_version_status"
+        ),
+    )
     _allowed_statuses: ClassVar[set[str]] = {"draft", "active", "superseded"}
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -92,7 +97,20 @@ class CorridorVersion(Base):
 class RoadSegment(Base):
     __tablename__ = "road_segment"
     __table_args__ = (
-        UniqueConstraint("corridor_version_id", "external_ref", name="uq_segment_external_ref"),
+        UniqueConstraint(
+            "corridor_version_id",
+            "external_ref",
+            "direction",
+            name="uq_segment_external_ref_direction",
+        ),
+        CheckConstraint(
+            "segment_type IN ('road', 'bridge', 'tunnel', 'approach')",
+            name="ck_road_segment_type",
+        ),
+        CheckConstraint(
+            "direction IN ('both', 'forward', 'backward', 'forward_only', 'backward_only')",
+            name="ck_road_segment_direction",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)

@@ -16,8 +16,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    if "session_record" in sa.inspect(op.get_bind()).get_table_names():
-        return
     op.create_table(
         "session_record",
         sa.Column("id", sa.String(length=36), nullable=False),
