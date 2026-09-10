@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable
 
-from ner_lens.identity.models import AuditEvent
+from sqlalchemy import select
+from sqlalchemy.orm import Session, sessionmaker
+
+from ner_lens.identity.models import Actor, AuditEvent, RoleAssignment, SessionRecord
 
 SUPPORTED_ROLES = {
     "field_reporter",
@@ -32,6 +36,8 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
     "ingestion_service": frozenset({"create_source_snapshot", "create_evidence"}),
 }
 STATUS_ACTIONS = frozenset({"publish_status", "expire_status"})
+REPLAY_STATUS_ACTOR = "replay_district_officer"
+REPLAY_STATUS_JURISDICTION = "replay_guwahati_silchar"
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +53,7 @@ class AuthContext:
     token_issued_at: datetime
     expires_at: datetime
     revoked: bool = False
+    status_authority_actor_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,8 +72,13 @@ class AuthorizationDecision:
 
 
 class AuthorizationService:
-    def __init__(self, audit_sink: Callable[[AuditEvent], None] | None = None) -> None:
+    def __init__(
+        self,
+        audit_sink: Callable[[AuditEvent], None] | None = None,
+        session_factory: sessionmaker[Session] | None = None,
+    ) -> None:
         self._audit_sink = audit_sink
+        self._session_factory = session_factory
 
     def authorize(
         self,
@@ -75,40 +87,128 @@ class AuthorizationService:
         scope: ResourceScope,
         *,
         now: datetime | None = None,
+        request_id: str | None = None,
     ) -> AuthorizationDecision:
         now = now or datetime.now(timezone.utc)
+        request_id = request_id or str(uuid.uuid4())
+        if self._session_factory:
+            persisted = self._check_persisted_context(actor, action, scope, now, request_id)
+            if persisted is not None:
+                return persisted
         if actor.revoked or now >= actor.expires_at:
-            return self._decide(actor, action, "session_expired", "session is expired or revoked")
+            return self._decide(
+                actor, action, "session_expired", "session is expired or revoked", request_id
+            )
 
         if not any(role in SUPPORTED_ROLES for role in actor.roles):
-            return self._decide(actor, action, "role_denied", "actor has no supported role")
+            return self._decide(
+                actor, action, "role_denied", "actor has no supported role", request_id
+            )
         if not any(action in ROLE_ACTIONS.get(role, frozenset()) for role in actor.roles):
             return self._decide(
-                actor, action, "role_denied", "role is not allowed to perform this action"
+                actor,
+                action,
+                "role_denied",
+                "role is not allowed to perform this action",
+                request_id,
             )
+        if action in STATUS_ACTIONS:
+            if not scope.jurisdiction_id:
+                return self._decide(
+                    actor,
+                    action,
+                    "jurisdiction_scope_required",
+                    "status authority jurisdiction must be server-derived",
+                    request_id,
+                )
+            if actor.actor_type == "synthetic" and (
+                actor.actor_id != REPLAY_STATUS_ACTOR
+                or scope.jurisdiction_id != REPLAY_STATUS_JURISDICTION
+            ):
+                return self._decide(
+                    actor,
+                    action,
+                    "replay_authority_scope_denied",
+                    "synthetic replay authority is bound to its declared jurisdiction",
+                    request_id,
+                )
+            if (
+                actor.status_authority_actor_id != actor.actor_id
+                or scope.status_authority_actor_id != actor.status_authority_actor_id
+            ):
+                return self._decide(
+                    actor,
+                    action,
+                    "status_authority_required",
+                    "status authority binding is required",
+                    request_id,
+                )
         if scope.jurisdiction_id and scope.jurisdiction_id not in actor.jurisdiction_ids:
             return self._decide(
                 actor,
                 action,
                 "jurisdiction_scope_denied",
                 "object is outside actor jurisdiction",
+                request_id,
             )
         if scope.mission_id and scope.mission_id not in actor.mission_ids:
             return self._decide(
-                actor, action, "mission_scope_denied", "object is outside actor mission scope"
+                actor,
+                action,
+                "mission_scope_denied",
+                "object is outside actor mission scope",
+                request_id,
             )
         if scope.owner_actor_id and scope.owner_actor_id != actor.actor_id:
             return self._decide(
-                actor, action, "object_scope_denied", "object is owned by another actor"
+                actor, action, "object_scope_denied", "object is owned by another actor", request_id
             )
-        if action in STATUS_ACTIONS and scope.status_authority_actor_id != actor.actor_id:
+        return self._decide(
+            actor, action, "allowed", "authorization granted", request_id, allowed=True
+        )
+
+    def _check_persisted_context(
+        self,
+        actor: AuthContext,
+        action: str,
+        scope: ResourceScope,
+        now: datetime,
+        request_id: str,
+    ) -> AuthorizationDecision | None:
+        assert self._session_factory is not None
+        with self._session_factory() as session:
+            stored_actor = session.get(Actor, actor.actor_id)
+            if stored_actor is None or not stored_actor.active:
+                return self._decide(
+                    actor, action, "actor_inactive", "actor is not active", request_id
+                )
+            stored_session = session.get(SessionRecord, actor.session_id)
+            if (
+                stored_session is None
+                or stored_session.actor_id != actor.actor_id
+                or not stored_session.is_valid(now)
+            ):
+                return self._decide(
+                    actor, action, "session_expired", "session is expired or revoked", request_id
+                )
+            assignments = session.scalars(
+                select(RoleAssignment).where(RoleAssignment.actor_id == actor.actor_id)
+            ).all()
+        allowed_roles = {
+            assignment.role
+            for assignment in assignments
+            if assignment.jurisdiction_id is None
+            or assignment.jurisdiction_id == scope.jurisdiction_id
+        }
+        if not any(role in allowed_roles for role in actor.roles):
             return self._decide(
                 actor,
                 action,
-                "status_authority_required",
-                "status authority binding is required",
+                "role_scope_denied",
+                "actor role assignment is outside the object scope",
+                request_id,
             )
-        return self._decide(actor, action, "allowed", "authorization granted", allowed=True)
+        return None
 
     def _decide(
         self,
@@ -116,6 +216,7 @@ class AuthorizationService:
         action: str,
         code: str,
         reason: str,
+        request_id: str,
         *,
         allowed: bool = False,
     ) -> AuthorizationDecision:
@@ -123,12 +224,12 @@ class AuthorizationService:
         if self._audit_sink:
             self._audit_sink(
                 AuditEvent(
-                    id=_deterministic_event_id(actor, action, code),
+                    id=str(uuid.uuid4()),
                     actor_id=actor.actor_id,
                     action="authorization.decision",
                     target_type="authorization",
                     target_id=action,
-                    request_id=actor.session_id,
+                    request_id=request_id,
                     before_hash=None,
                     after_hash=None,
                     reason=reason,
@@ -136,12 +237,3 @@ class AuthorizationService:
                 )
             )
         return decision
-
-
-def _deterministic_event_id(actor: AuthContext, action: str, code: str) -> str:
-    import hashlib
-
-    digest = hashlib.sha256(
-        f"{actor.actor_id}:{actor.session_id}:{action}:{code}".encode()
-    ).hexdigest()
-    return f"{digest[:8]}-{digest[8:12]}-4{digest[13:16]}-8{digest[17:20]}-{digest[20:32]}"
