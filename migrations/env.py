@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from logging.config import fileConfig
 import os
+from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
@@ -11,26 +11,37 @@ from sqlalchemy import engine_from_config, pool
 from ner_lens.corridor.models import Base
 from ner_lens.identity import models as _identity_models  # noqa: F401
 
-
 config = context.config
-if config.config_file_name is not None:
+if config.config_file_name is not None and config.get_section("loggers") is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
+DEFAULT_DATABASE_URL = "sqlite:///ner_lens_replay.sqlite"
+
+
+def database_url() -> str:
+    return (
+        os.getenv("DATABASE_URL")
+        or config.get_main_option("sqlalchemy.url")
+        or DEFAULT_DATABASE_URL
+    )
 
 
 def run_migrations_offline() -> None:
-    url = os.getenv("DATABASE_URL", "postgresql+psycopg://ner_lens@localhost/ner_lens")
-    context.configure(url=url, target_metadata=target_metadata, literal_binds=True, dialect_opts={"paramstyle": "named"})
+    url = database_url()
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+    )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
     settings = config.get_section(config.config_ini_section) or {}
-    settings["sqlalchemy.url"] = os.getenv(
-        "DATABASE_URL", settings.get("sqlalchemy.url", "postgresql+psycopg://ner_lens@localhost/ner_lens")
-    )
+    settings["sqlalchemy.url"] = database_url()
     connectable = engine_from_config(settings, prefix="sqlalchemy.", poolclass=pool.NullPool)
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
