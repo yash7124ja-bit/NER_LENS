@@ -7,7 +7,7 @@ from pathlib import Path
 from alembic import command
 from alembic.config import Config
 
-from ner_lens.config import Settings
+from ner_lens.config import Settings, normalize_database_url
 from ner_lens.corridor.importer import (
     PROJECT_ROOT,
     CorridorImportService,
@@ -21,14 +21,19 @@ from ner_lens.identity.replay import JURISDICTION, issue_viewer_session
 
 
 def initialize(settings: Settings) -> str:
-    if settings.environment != "replay" or not settings.database_url.startswith("sqlite"):
-        raise ValueError("Initialization is limited to a local SQLite replay database")
+    if settings.environment != "replay" or not settings.database_url.startswith(
+        ("sqlite", "postgresql")
+    ):
+        raise ValueError("Initialization requires a SQLite or PostgreSQL replay database")
     if ":memory:" in settings.database_url or settings.database_url.rstrip("/") == "sqlite:":
         raise ValueError("Initialization requires a persistent SQLite replay file")
     config = Config(str(PROJECT_ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(PROJECT_ROOT / "migrations"))
-    config.set_main_option("sqlalchemy.url", settings.database_url)
-    if os.getenv("DATABASE_URL", settings.database_url) != settings.database_url:
+    config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
+    if (
+        normalize_database_url(os.getenv("DATABASE_URL", settings.database_url))
+        != settings.database_url
+    ):
         raise ValueError("DATABASE_URL must agree with the requested replay database")
     command.upgrade(config, "head")
     factory = build_session_factory(settings)

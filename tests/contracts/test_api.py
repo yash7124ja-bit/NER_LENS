@@ -207,7 +207,7 @@ def test_openapi_contains_only_implemented_routes_and_matches_snapshot(api):
 
 
 def test_production_mode_is_rejected():
-    with pytest.raises(ValueError, match="local SQLite replay"):
+    with pytest.raises(ValueError, match="replay only"):
         create_app(Settings(environment="production"))
 
 

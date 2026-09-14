@@ -8,6 +8,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
+from ner_lens.config import utc_datetime
 from ner_lens.db import session_scope
 from ner_lens.identity.models import Actor, Jurisdiction, RoleAssignment, SessionRecord
 from ner_lens.identity.service import AuthContext, AuthorizationService, ResourceScope
@@ -105,7 +106,7 @@ def authenticate(factory: sessionmaker[Session], token: str) -> AuthContext | No
         assignments = session.scalars(
             select(RoleAssignment).where(RoleAssignment.actor_id == actor.id)
         ).all()
-        issued = record.token_issued_at.replace(tzinfo=timezone.utc)
+        issued = utc_datetime(record.token_issued_at)
         if issued > now:
             return None
         return AuthContext(
@@ -118,5 +119,5 @@ def authenticate(factory: sessionmaker[Session], token: str) -> AuthContext | No
             mission_ids=(),
             session_id=record.id,
             token_issued_at=issued,
-            expires_at=record.expires_at.replace(tzinfo=timezone.utc),
+            expires_at=utc_datetime(record.expires_at),
         )

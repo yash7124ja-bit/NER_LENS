@@ -292,6 +292,7 @@ class CorridorImportService:
                 effective_from=datetime.now(timezone.utc),
             )
             session.add(version)
+            session.flush()
             segment_ids: list[str] = []
             quarantined: list[str] = []
             for spec in specs:

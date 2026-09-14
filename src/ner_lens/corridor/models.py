@@ -9,7 +9,32 @@ from typing import Any, ClassVar
 from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, validates
+from sqlalchemy.sql.functions import FunctionElement
 from sqlalchemy.types import UserDefinedType
+
+
+class _GeometryBind(FunctionElement):
+    inherit_cache = True
+
+
+class _GeometryJSON(FunctionElement):
+    inherit_cache = True
+
+
+@compiles(_GeometryBind)
+@compiles(_GeometryJSON)
+def _geometry_identity(element, compiler, **kw):
+    return compiler.process(list(element.clauses)[0], **kw)
+
+
+@compiles(_GeometryBind, "postgresql")
+def _geometry_bind_pg(element, compiler, **kw):
+    return f"ST_SetSRID(ST_GeomFromGeoJSON({_geometry_identity(element, compiler, **kw)}),4326)"
+
+
+@compiles(_GeometryJSON, "postgresql")
+def _geometry_json_pg(element, compiler, **kw):
+    return f"ST_AsGeoJSON({_geometry_identity(element, compiler, **kw)})"
 
 
 class Base(DeclarativeBase):
@@ -36,6 +61,14 @@ def validate_linestring_4326(value: Any) -> dict[str, Any]:
 
 class Geometry4326(UserDefinedType):
     cache_ok = True
+
+    def bind_expression(self, bindvalue):
+        return _GeometryBind(bindvalue)
+
+    def column_expression(self, column):
+        expression = _GeometryJSON(column)
+        expression.type = self
+        return expression
 
     def get_col_spec(self, **_: Any) -> str:
         return "geometry(Geometry,4326)"

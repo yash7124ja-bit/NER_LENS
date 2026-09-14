@@ -1,5 +1,6 @@
 """Replay API shell. Start with uvicorn ner_lens.app:app --host 127.0.0.1."""
 
+import hmac
 from contextlib import asynccontextmanager
 from typing import Annotated
 from urllib.parse import urlsplit
@@ -45,8 +46,14 @@ def create_app(
     factory: sessionmaker[Session] | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
-    if settings.environment != "replay" or not settings.database_url.startswith("sqlite"):
-        raise ValueError("This API shell supports local SQLite replay only")
+    if settings.environment != "replay" or not settings.database_url.startswith(
+        ("sqlite", "postgresql")
+    ):
+        raise ValueError("This API supports SQLite or PostgreSQL replay only")
+    if settings.database_url.startswith("postgresql") and (
+        not settings.session_cookie_secure or not settings.proxy_secret
+    ):
+        raise ValueError("Hosted replay requires Secure cookies and a proxy secret")
     owned_factory = factory is None
     factory = factory or build_session_factory(settings)
     session_cookie = APIKeyCookie(name=settings.session_cookie_name, auto_error=False)
@@ -68,8 +75,13 @@ def create_app(
     @app.middleware("http")
     async def request_context(request: Request, call_next):
         request.state.request_id = str(uuid4())
-        if request.url.hostname not in {"localhost", "127.0.0.1", "testserver"}:
+        if request.url.hostname not in settings.allowed_hosts:
             return error(request, 400, "invalid_request", "Host is not permitted")
+        if settings.proxy_secret and request.url.path.startswith("/v1/"):
+            if not hmac.compare_digest(
+                request.headers.get("x-ner-lens-proxy", ""), settings.proxy_secret
+            ):
+                return error(request, 403, "forbidden", "Access is not permitted")
         try:
             response = await call_next(request)
         except Exception:
@@ -169,7 +181,13 @@ def create_app(
                 email=body.email,
                 password=body.password,
                 request_id=request.state.request_id,
-                client_key=request.client.host if request.client else "unknown",
+                client_key=(
+                    request.headers.get("x-ner-lens-client", "unknown")
+                    if settings.proxy_secret
+                    else request.client.host
+                    if request.client
+                    else "unknown"
+                ),
                 session_ttl_seconds=settings.session_ttl_seconds,
                 attempt_limit=settings.login_attempt_limit,
                 window_seconds=settings.login_window_seconds,

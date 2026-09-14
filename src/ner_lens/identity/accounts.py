@@ -202,10 +202,13 @@ def login(
     error = None
     token = None
     with session_scope(factory) as session:
-        if session.get_bind().dialect.name != "sqlite":
-            raise RuntimeError("Local account login currently requires SQLite")
-        # ponytail: SQLite serializes login hashing; use row locks for a higher-throughput store.
-        session.execute(text("BEGIN IMMEDIATE"))
+        # ponytail: serialize login hashing; partition locks when login throughput requires it.
+        if session.get_bind().dialect.name == "sqlite":
+            session.execute(text("BEGIN IMMEDIATE"))
+        elif session.get_bind().dialect.name == "postgresql":
+            session.execute(text("SELECT pg_advisory_xact_lock(hashtext('ner_lens_login'))"))
+        else:
+            raise RuntimeError("Account login requires SQLite or PostgreSQL")
         now = datetime.now(timezone.utc)
         session.execute(
             delete(LoginThrottle).where(

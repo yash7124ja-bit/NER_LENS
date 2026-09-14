@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
+from ner_lens.config import utc_datetime
 from ner_lens.contracts import (
     CorridorList,
     CorridorState,
@@ -33,7 +34,7 @@ def provenance(version: CorridorVersion) -> Provenance:
     return Provenance(
         fixture_sha256=version.graph_sha256,
         observed_at=None,
-        retrieved_at=version.effective_from.replace(tzinfo=timezone.utc),
+        retrieved_at=utc_datetime(version.effective_from),
         graph_version=version.graph_version,
     )
 
@@ -85,7 +86,7 @@ def read_state(
     ):
         raise PermissionError("Corridor is outside the assigned scope")
     now = datetime.now(timezone.utc)
-    if query.at and not version.effective_from.replace(tzinfo=timezone.utc) <= query.at <= now:
+    if query.at and not utc_datetime(version.effective_from) <= query.at <= now:
         raise ValueError("Historical versions and future assessments are unavailable")
     with factory() as session:
         rows = session.scalars(

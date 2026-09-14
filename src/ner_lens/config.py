@@ -4,6 +4,22 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
+
+
+def normalize_database_url(url: str) -> str:
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix) :]
+    return url
+
+
+def utc_datetime(value: datetime) -> datetime:
+    return (
+        value.replace(tzinfo=timezone.utc)
+        if value.tzinfo is None
+        else value.astimezone(timezone.utc)
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,6 +33,8 @@ class Settings:
     session_cookie_name: str = "ner_lens_session"
     session_cookie_secure: bool = False
     auth_allowed_origins: tuple[str, ...] = ()
+    allowed_hosts: tuple[str, ...] = ("localhost", "127.0.0.1", "testserver")
+    proxy_secret: str = ""
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -35,7 +53,9 @@ class Settings:
             return value
 
         return cls(
-            database_url=os.getenv("DATABASE_URL", "sqlite:///ner_lens_replay.sqlite"),
+            database_url=normalize_database_url(
+                os.getenv("DATABASE_URL", "sqlite:///ner_lens_replay.sqlite")
+            ),
             environment=os.getenv("NER_LENS_ENV", cls().environment),
             api_request_timeout_seconds=timeout_seconds,
             session_ttl_seconds=positive("SESSION_TTL_SECONDS", cls().session_ttl_seconds),
@@ -48,4 +68,11 @@ class Settings:
                 for value in os.getenv("AUTH_ALLOWED_ORIGINS", "").split(",")
                 if value.strip()
             ),
+            allowed_hosts=tuple(
+                filter(
+                    None, os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",")
+                )
+            )
+            + tuple(filter(None, [os.getenv("RENDER_EXTERNAL_HOSTNAME")])),
+            proxy_secret=os.getenv("PROXY_SECRET", ""),
         )
