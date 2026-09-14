@@ -109,9 +109,9 @@ class ExternalReference(Contract):
 
 
 class UnknownStatus(Contract):
-    value: Literal["unknown"] = "unknown"
-    vehicle_scope: list[Literal["all"]] = Field(default_factory=lambda: ["all"])
-    valid_until: None = None
+    value: Literal["unknown", "open", "restricted", "closed"] = "unknown"
+    vehicle_scope: list[str] = Field(default_factory=lambda: ["all"])
+    valid_until: AwareDatetime | None = None
 
 
 class UnavailableRisk(Contract):

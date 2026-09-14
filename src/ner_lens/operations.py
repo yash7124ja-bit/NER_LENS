@@ -15,7 +15,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from ner_lens.common.idempotency import canonical_request_hash, validate_idempotency_key
 from ner_lens.corridor.models import Base, CorridorVersion, RoadSegment
-from ner_lens.identity.models import Actor, AuditEvent, IdempotencyRecord, RoleAssignment
+from ner_lens.identity.models import (
+    Actor,
+    AuditEvent,
+    IdempotencyRecord,
+    LocalAccount,
+    RoleAssignment,
+)
 from ner_lens.identity.service import AuthContext, AuthorizationService, ResourceScope
 from ner_lens.spatial import assert_corridor_point
 
@@ -401,6 +407,32 @@ def build_router(factory, current_actor):
         session.commit()
         return body
 
+    @router.get("/v1/corridors/{corridor_id}/capabilities")
+    def capabilities(corridor_id: str, actor: AuthContext = Depends(current_actor)):
+        with factory() as session:
+            graph = corridor(session, corridor_id)
+            authorize(actor, "read_corridor_state", graph.jurisdiction_id)
+            actions = {}
+            for action in (
+                "create_field_report",
+                "review_evidence",
+                "publish_status",
+                "create_mission",
+                "compare_routes",
+                "submit_gps",
+                "view_mission",
+            ):
+                decision = authorization.authorize(
+                    actor,
+                    action,
+                    ResourceScope(
+                        jurisdiction_id=graph.jurisdiction_id,
+                        status_authority_actor_id=actor.actor_id,
+                    ),
+                )
+                actions[action] = {"allowed": decision.allowed, "reason": decision.code}
+            return {"actions": actions, "data_mode": "replay"}
+
     @router.post("/v1/field-reports", status_code=201)
     def report(
         body: ReportInput,
@@ -475,9 +507,18 @@ def build_router(factory, current_actor):
         with factory() as session:
             jurisdiction = segment_scope(session, segment_id)
             reviewer = "reviewer" in actor.roles
-            authorize(actor, "review_evidence" if reviewer else "view_own_report", jurisdiction)
+            officer = "district_officer" in actor.roles
+            authorize(
+                actor,
+                "review_evidence"
+                if reviewer
+                else "read_corridor_state"
+                if officer
+                else "view_own_report",
+                jurisdiction,
+            )
             query = select(FieldReport).where(FieldReport.segment_id == segment_id)
-            if not reviewer:
+            if not reviewer and not officer:
                 query = query.where(FieldReport.actor_id == actor.actor_id)
             rows = session.scalars(
                 query.order_by(FieldReport.received_at.desc()).limit(limit)
@@ -723,6 +764,36 @@ def build_router(factory, current_actor):
                 "mission.created",
                 create,
             )
+
+    @router.get("/v1/mission-assignees")
+    def assignees(corridor_id: str, actor: AuthContext = Depends(current_actor)):
+        with factory() as session:
+            graph = corridor(session, corridor_id)
+            authorize(actor, "create_mission", graph.jurisdiction_id)
+            rows = (
+                session.scalars(
+                    select(Actor)
+                    .join(RoleAssignment)
+                    .where(
+                        Actor.active.is_(True),
+                        RoleAssignment.role == "field_reporter",
+                        RoleAssignment.jurisdiction_id == graph.jurisdiction_id,
+                    )
+                )
+                .unique()
+                .all()
+            )
+            return {
+                "actors": [
+                    {
+                        "actor_id": row.id,
+                        "display_name": account.display_name
+                        if (account := session.get(LocalAccount, row.id))
+                        else "Field reporter",
+                    }
+                    for row in rows
+                ]
+            }
 
     @router.get("/v1/missions")
     def missions(corridor_id: str, actor: AuthContext = Depends(current_actor)):

@@ -25,7 +25,7 @@ LIMITATIONS = [
     "Geometry represents coarse audit-band endpoints, not navigable road geometry.",
     "Geometry and restrictions are hand-authored synthetic fixtures, not measured road facts.",
     "Provenance retrieved_at is the local fixture import time, not a source observation time.",
-    "No operational source is configured; source health is failed and status is unknown.",
+    "Provider access does not establish passability; status requires a scoped authority decision.",
     "Risk probabilities, vehicle clearance and travel-time intervals are not measured.",
 ]
 
@@ -40,20 +40,34 @@ def provenance(version: CorridorVersion) -> Provenance:
 
 
 def list_corridors(
-    factory: sessionmaker[Session], actor: AuthContext, request_id: str,
+    factory: sessionmaker[Session],
+    actor: AuthContext,
+    request_id: str,
 ) -> CorridorList:
     if not actor.jurisdiction_ids:
         raise PermissionError("No assigned corridor scope")
     with factory() as session:
-        versions = session.scalars(select(CorridorVersion).where(
-            CorridorVersion.status == "active", CorridorVersion.provenance_label == "replay",
-            CorridorVersion.jurisdiction_id.in_(actor.jurisdiction_ids),
-        ).order_by(CorridorVersion.corridor_key, CorridorVersion.effective_from.desc())).all()
+        versions = session.scalars(
+            select(CorridorVersion)
+            .where(
+                CorridorVersion.status == "active",
+                CorridorVersion.provenance_label == "replay",
+                CorridorVersion.jurisdiction_id.in_(actor.jurisdiction_ids),
+            )
+            .order_by(CorridorVersion.corridor_key, CorridorVersion.effective_from.desc())
+        ).all()
     if not versions:
         raise LookupError("No assigned replay corridor is available")
-    permitted = [version for version in versions if authorize_corridor(
-        factory, actor, request_id, jurisdiction_id=version.jurisdiction_id,
-    )]
+    permitted = [
+        version
+        for version in versions
+        if authorize_corridor(
+            factory,
+            actor,
+            request_id,
+            jurisdiction_id=version.jurisdiction_id,
+        )
+    ]
     if not permitted:
         raise PermissionError("Role cannot read the assigned corridors")
     return CorridorList(
@@ -63,7 +77,8 @@ def list_corridors(
                 corridor_version_id=UUID(version.id),
                 name=version.name or version.corridor_key,
                 graph_version=version.graph_version,
-            ) for version in permitted
+            )
+            for version in permitted
         ],
         provenance=provenance(permitted[0]),
         limitations=LIMITATIONS,
@@ -82,7 +97,10 @@ def read_state(
     if version is None or version.status != "active" or version.provenance_label != "replay":
         raise LookupError("Corridor was not found")
     if version.jurisdiction_id is None or not authorize_corridor(
-        factory, actor, request_id, jurisdiction_id=version.jurisdiction_id,
+        factory,
+        actor,
+        request_id,
+        jurisdiction_id=version.jurisdiction_id,
     ):
         raise PermissionError("Corridor is outside the assigned scope")
     now = datetime.now(timezone.utc)
@@ -101,6 +119,15 @@ def read_state(
             raise ValueError("Cursor does not belong to this corridor")
         start = indices[0] + 1
     page = rows[start : start + query.limit]
+    from ner_lens.operations import effective_status
+
+    with factory() as session:
+        decisions = {
+            row.id: effective_status(
+                session, row.id, query.at or now, vehicle_profile=query.vehicle_profile or "all"
+            )
+            for row in page
+        }
     return CorridorState(
         corridor_id=corridor_id,
         corridor_version_id=UUID(version.id),
@@ -110,6 +137,11 @@ def read_state(
                 segment_id=UUID(row.id),
                 external_refs=[ExternalReference(source="replay_audit_band", id=row.external_ref)],
                 geometry=row.geometry,
+                operational_status={
+                    "value": decisions[row.id]["status"],
+                    "vehicle_scope": decisions[row.id].get("vehicle_scope", ["all"]),
+                    "valid_until": decisions[row.id].get("valid_until"),
+                },
                 segment_type=row.segment_type,
                 direction=row.direction,
                 vehicle_constraints=row.vehicle_constraints,

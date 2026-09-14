@@ -1,6 +1,8 @@
 """Render entrypoint: migrate replay storage before starting the API."""
 
+import json
 import os
+from pathlib import Path
 from uuid import UUID, uuid4
 
 import uvicorn
@@ -20,6 +22,57 @@ def main() -> None:
     settings = Settings.from_env()
     token = initialize(settings)
     factory = build_session_factory(settings)
+    from ner_lens.administration import ingest_stories
+    from ner_lens.identity.models import AuditEvent, LocalAccount, RoleAssignment
+
+    source = Path(__file__).resolve().parents[2] / "data" / "user_stories.json"
+    if source.exists():
+        ingest_stories(factory, json.loads(source.read_text(encoding="utf-8")))
+    admin_email = os.getenv("NER_LENS_SUPERADMIN_EMAIL", "").strip().casefold()
+    if admin_email:
+        with factory.begin() as session:
+            account = session.scalar(select(LocalAccount).where(LocalAccount.email == admin_email))
+            if account is None:
+                raise ValueError("Super Admin bootstrap requires an existing account")
+            scopes = (
+                session.scalars(
+                    select(RoleAssignment.jurisdiction_id).where(
+                        RoleAssignment.actor_id == account.actor_id
+                    )
+                )
+                .unique()
+                .all()
+            )
+            for scope in scopes:
+                existing = session.scalar(
+                    select(RoleAssignment).where(
+                        RoleAssignment.actor_id == account.actor_id,
+                        RoleAssignment.role == "system_admin",
+                        RoleAssignment.jurisdiction_id == scope,
+                    )
+                )
+                if existing is None:
+                    session.add(
+                        AuditEvent(
+                            id=str(uuid4()),
+                            actor_id=account.actor_id,
+                            action="admin.bootstrap",
+                            target_type="actor",
+                            target_id=account.actor_id,
+                            jurisdiction_id=scope,
+                            request_id=str(uuid4()),
+                            outcome="allowed",
+                            reason="One-time administrator bootstrap from deployment environment",
+                        )
+                    )
+                    session.add(
+                        RoleAssignment(
+                            id=str(uuid4()),
+                            actor_id=account.actor_id,
+                            role="system_admin",
+                            jurisdiction_id=scope,
+                        )
+                    )
     try:
         actor = authenticate(factory, token)
         request_id = str(uuid4())

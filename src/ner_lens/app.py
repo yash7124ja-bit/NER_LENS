@@ -208,6 +208,22 @@ def create_app(
             raise HTTPException(401)
         return actor
 
+    @app.get("/v1/maps/config")
+    def map_config(actor: Annotated[AuthContext, Depends(current_actor)]):
+        from urllib.parse import urlsplit
+
+        url = settings.map_style_url
+        parsed = urlsplit(url)
+        if url and (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.query
+        ):
+            raise HTTPException(503, "invalid_public_map_style")
+        return {"style_url": url or None, "offline_tiles": False}
+
     def check_origin(request: Request) -> None:
         origin = request.headers.get("origin")
         if request.headers.get("sec-fetch-site") == "cross-site":
@@ -394,8 +410,10 @@ def create_app(
         except PermissionError as exc:
             raise HTTPException(403) from exc
 
+    from ner_lens.administration import build_router as administration_router
     from ner_lens.media import build_router as media_router
 
+    app.include_router(administration_router(factory, current_actor))
     app.include_router(media_router(factory, current_actor))
     app.include_router(operations_router(factory, current_actor))
     app.include_router(routing_router(factory, current_actor, settings))

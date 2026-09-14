@@ -188,26 +188,33 @@ def test_openapi_contains_only_implemented_routes_and_matches_snapshot(api):
     client, _, _ = api
     document = client.get("/openapi.json").json()
     assert set(document["paths"]) == {
+        "/health/sources",
+        "/v1/admin/users",
+        "/v1/corridors/{corridor_id}/capabilities",
+        "/v1/auth/logout",
+        "/v1/routes/compare",
+        "/v1/mission-assignees",
+        "/v1/admin/user-stories",
+        "/v1/corridors/{corridor_id}/state",
+        "/v1/maps/config",
+        "/v1/admin/users/{actor_id}/roles",
+        "/v1/corridors",
+        "/v1/missions/{mission_id}",
+        "/v1/missions/{mission_id}/positions",
+        "/health/live",
+        "/v1/auth/login",
+        "/v1/reviews/{evidence_id}",
         "/v1/models/current",
         "/v1/missions/{mission_id}/start",
-        "/v1/auth/session",
-        "/v1/auth/logout",
-        "/v1/auth/login",
-        "/v1/corridors/{corridor_id}/state",
-        "/v1/status-decisions",
-        "/v1/field-reports/{report_id}/media",
-        "/health/sources",
-        "/v1/reviews/{evidence_id}",
-        "/v1/routes/compare",
         "/v1/missions",
-        "/v1/field-reports/{report_id}/media/{slot}",
-        "/health/live",
-        "/v1/missions/{mission_id}/complete",
-        "/v1/missions/{mission_id}/positions",
+        "/v1/status-decisions",
         "/v1/field-reports",
-        "/v1/missions/{mission_id}",
-        "/v1/corridors",
+        "/v1/field-reports/{report_id}/media",
+        "/v1/auth/session",
         "/health/ready",
+        "/v1/missions/{mission_id}/complete",
+        "/v1/field-reports/{report_id}/media/{slot}",
+        "/v1/user-stories",
     }
     assert document["paths"]["/v1/corridors"]["get"]["security"] == [
         {"HTTPBearer": []},
@@ -272,3 +279,122 @@ def test_internal_errors_do_not_expose_exception_text(api, monkeypatch):
     ErrorResponse.model_validate(response.json())
     assert "private-exception-value" not in response.text
     assert response.headers["X-Request-ID"] == response.json()["error"]["request_id"]
+
+
+def test_published_authority_status_reaches_corridor_overview(api):
+    from ner_lens.identity.models import StatusAuthority
+    from ner_lens.operations import StatusDecision
+
+    client, factory, _ = api
+    corridor = client.get("/v1/corridors").json()["corridors"][0]["corridor_id"]
+    caps = client.get(f"/v1/corridors/{corridor}/capabilities").json()["actions"]
+    assert not caps["publish_status"]["allowed"]
+    assert client.get("/v1/mission-assignees", params={"corridor_id": corridor}).status_code == 403
+    with factory.begin() as session:
+        assignment = session.scalar(select(RoleAssignment).where(RoleAssignment.actor_id == VIEWER))
+        assignment.role = "district_officer"
+        session.add(
+            StatusAuthority(
+                actor_id=VIEWER, jurisdiction_id=assignment.jurisdiction_id, active=True
+            )
+        )
+    path = f"/v1/corridors/{corridor}/state"
+    segment = client.get(path).json()["segments"][0]["segment_id"]
+    now = datetime.now(timezone.utc)
+    response = client.post(
+        "/v1/status-decisions",
+        headers={"Idempotency-Key": str(uuid4())},
+        json={
+            "segment_id": segment,
+            "status": "closed",
+            "vehicle_scope": ["all"],
+            "direction": "both",
+            "reason_code": "authority_order",
+            "effective_at": (now - timedelta(seconds=2)).isoformat(),
+            "valid_until": (now + timedelta(hours=1)).isoformat(),
+            "note": "Test authority order",
+            "evidence_ids": [],
+        },
+    )
+    assert response.status_code == 201, response.text
+    state = client.get(path).json()["segments"][0]
+    assert state["operational_status"]["value"] == "closed"
+    assert state["risk"]["probability"] is None
+    with factory.begin() as session:
+        session.get(StatusDecision, response.json()["decision_id"]).valid_until = now - timedelta(
+            seconds=1
+        )
+    assert client.get(path).json()["segments"][0]["operational_status"]["value"] == "unknown"
+
+
+def test_super_admin_scope_user_creation_and_story_ingestion(api):
+    client, factory, _ = api
+    corridor = client.get("/v1/corridors").json()["corridors"][0]["corridor_id"]
+    assert client.get("/v1/admin/users", params={"corridor_id": corridor}).status_code == 403
+    with factory.begin() as session:
+        assignment = session.scalar(select(RoleAssignment).where(RoleAssignment.actor_id == VIEWER))
+        session.add(
+            RoleAssignment(
+                id=str(uuid4()),
+                actor_id=VIEWER,
+                role="system_admin",
+                jurisdiction_id=assignment.jurisdiction_id,
+            )
+        )
+    body = {
+        "corridor_id": corridor,
+        "email": "new-operator@example.test",
+        "display_name": "Test operator",
+        "password": "test-only-password-strong",
+        "roles": ["field_reporter"],
+        "status_authority": False,
+    }
+    created = client.post("/v1/admin/users", json=body)
+    assert created.status_code == 201, created.text
+    target = created.json()["actor_id"]
+    users = client.get("/v1/admin/users", params={"corridor_id": corridor})
+    assert users.status_code == 200
+    assert body["password"] not in users.text and "password_hash" not in users.text
+    assert (
+        client.post(
+            f"/v1/admin/users/{VIEWER}/roles",
+            json={"corridor_id": corridor, "roles": ["regional_viewer"]},
+        ).status_code
+        == 409
+    )
+    assert (
+        client.post(
+            f"/v1/admin/users/{target}/roles",
+            json={"corridor_id": corridor, "roles": ["field_reporter"], "status_authority": True},
+        ).status_code
+        == 422
+    )
+    changed = client.post(
+        f"/v1/admin/users/{target}/roles",
+        json={"corridor_id": corridor, "roles": ["district_officer"], "status_authority": True},
+    )
+    assert changed.status_code == 200
+    with factory() as session:
+        assert session.scalar(
+            select(AuditEvent).where(
+                AuditEvent.target_id == target, AuditEvent.action == "admin.roles_assigned"
+            )
+        )
+    story = {
+        "id": "TEST-STORY",
+        "role": "dispatcher",
+        "title": "Test delivery",
+        "story": "As a dispatcher I need persisted missions.",
+        "acceptance": ["Mission survives reload"],
+        "status": "implemented",
+        "evidence": "Unit test only",
+    }
+    assert (
+        client.post(
+            "/v1/admin/user-stories", params={"corridor_id": corridor}, json=[story]
+        ).status_code
+        == 200
+    )
+    result = client.get("/v1/user-stories", params={"corridor_id": corridor}).json()
+    assert result["stories"] == [story] and result["vector_index"] == "not_configured"
+    assert client.get("/v1/maps/config").json()["style_url"] is None

@@ -1,0 +1,159 @@
+[
+  {
+    "id": "SIH-01",
+    "role": "regional_viewer",
+    "title": "Understand corridor readiness",
+    "story": "As a regional viewer, I need road status, evidence age and model uncertainty shown separately so that missing data cannot be mistaken for safe travel.",
+    "acceptance": [
+      "Unknown status never means open",
+      "Map has a segment table alternative",
+      "Replay data is explicitly labelled"
+    ],
+    "status": "verified_replay",
+    "evidence": "Contract tests and browser inspection of the replay corridor."
+  },
+  {
+    "id": "SIH-02",
+    "role": "field_reporter",
+    "title": "Capture evidence during connectivity loss",
+    "story": "As a field reporter, I need to save observations on my device and synchronize without losing or duplicating reports.",
+    "acceptance": [
+      "Draft survives browser storage restart",
+      "Lost acknowledgement retries reuse the report identity",
+      "Only the report owner can synchronize"
+    ],
+    "status": "verified_replay",
+    "evidence": "100-report controlled storage test and one browser capture/sync trial. Full field-device trial pending."
+  },
+  {
+    "id": "SIH-03",
+    "role": "reviewer",
+    "title": "Review reported road conditions",
+    "story": "As a reviewer, I need to accept, reject or request clarification on a scoped report with a reason before it is used as operational evidence.",
+    "acceptance": [
+      "Review is persisted with actor and time",
+      "Cross-jurisdiction access is denied",
+      "Accepting evidence alone never changes road status"
+    ],
+    "status": "verified_replay",
+    "evidence": "Operations API tests and browser accept-review trial."
+  },
+  {
+    "id": "SIH-04",
+    "role": "district_officer",
+    "title": "Publish an expiring authority decision",
+    "story": "As a district officer with a recorded authority grant, I need to publish vehicle-scoped road decisions backed by reviewed evidence or an authority order.",
+    "acceptance": [
+      "Role and authority grant are both required",
+      "Decision updates the corridor overview",
+      "Expiry returns status to unknown"
+    ],
+    "status": "verified_replay",
+    "evidence": "API closure/expiry integration check and browser accepted-evidence publication trial."
+  },
+  {
+    "id": "SIH-05",
+    "role": "dispatcher",
+    "title": "Compare routes before medicine dispatch",
+    "story": "As a dispatcher, I need legal, current route candidates with uncertainty so that I can avoid dispatching through an unsupported route.",
+    "acceptance": [
+      "Vehicle restrictions checked against a dated graph",
+      "Source age and uncertainty shown",
+      "No feasible route is an explicit outcome"
+    ],
+    "status": "implemented",
+    "evidence": "Baseline comparison API and UI exist. Live vehicle legality, approved risk policy and alternative-route validation remain pending."
+  },
+  {
+    "id": "SIH-06",
+    "role": "dispatcher",
+    "title": "Manage a medicine delivery",
+    "story": "As a dispatcher, I need to create a medicine mission, assign a field reporter and record start and completion.",
+    "acceptance": [
+      "Mission survives reload",
+      "Only scoped eligible reporters are assignable",
+      "Start and completion are audited"
+    ],
+    "status": "verified_replay",
+    "evidence": "Browser create/start/complete trial against disposable migrated database."
+  },
+  {
+    "id": "SIH-07",
+    "role": "field_reporter",
+    "title": "Share a mission location with consent",
+    "story": "As an assigned field reporter, I need to share a location deliberately and see whether it was accepted without continuous hidden tracking.",
+    "acceptance": [
+      "Explicit browser permission",
+      "Only active assigned missions accept fixes",
+      "Out-of-corridor and impossible data are rejected or flagged"
+    ],
+    "status": "implemented",
+    "evidence": "GPS API tests pass and one-time browser capture control is implemented. Real-device field trial pending."
+  },
+  {
+    "id": "SIH-08",
+    "role": "system_admin",
+    "title": "Manage corridor-scoped access",
+    "story": "As Super Admin, I need to create accounts and assign roles and status authority with an audit trail rather than embedding accounts or permissions in the frontend.",
+    "acceptance": [
+      "Server checks administrator scope",
+      "Passwords are hashed and never returned",
+      "Role changes are audited",
+      "Administrator cannot remove their own admin role"
+    ],
+    "status": "verified_replay",
+    "evidence": "Administrator scope/role/secret-exclusion tests and browser account creation against disposable migrated database."
+  },
+  {
+    "id": "SIH-09",
+    "role": "field_reporter",
+    "title": "Attach trustworthy report photos",
+    "story": "As a field reporter, I need resumable private media uploads whose metadata is stripped and whose scan state is visible.",
+    "acceptance": [
+      "Partial retries preserve accepted slots",
+      "Media is private until a trusted scan passes",
+      "EXIF location is stripped"
+    ],
+    "status": "external_dependency",
+    "evidence": "API quarantine/derivative tests pass; production malware scanner and upload UI remain pending."
+  },
+  {
+    "id": "SIH-10",
+    "role": "system_admin",
+    "title": "Recover data after an outage",
+    "story": "As Super Admin, I need a verified encrypted database backup and restore procedure.",
+    "acceptance": [
+      "Encrypted backup validates authenticity",
+      "Restore targets a different database",
+      "Real restore drill is recorded"
+    ],
+    "status": "external_dependency",
+    "evidence": "Encryption and subprocess failure tests pass. Live PostgreSQL restore demonstration pending."
+  },
+  {
+    "id": "SIH-11",
+    "role": "regional_viewer",
+    "title": "Use evaluated predictions honestly",
+    "story": "As a decision maker, I need a model card with held-out monsoon evaluation, calibration and limitations before relying on a hazard prediction.",
+    "acceptance": [
+      "Verified labels and temporal separation",
+      "Baselines precede complex models",
+      "Uncertainty and abstention are visible"
+    ],
+    "status": "external_dependency",
+    "evidence": "Evaluation tooling exists. Verified real labels, held-out evaluation and partner validation are not complete."
+  },
+  {
+    "id": "SIH-12",
+    "role": "system_admin",
+    "title": "Find SIH user stories and acceptance evidence",
+    "story": "As Super Admin, I need a versionable register of relevant user stories and their verified status, with optional semantic search when the vector service is configured.",
+    "acceptance": [
+      "Stories persist in the application database",
+      "Status is shown without claiming unverified completion",
+      "Optional vector index does not replace authoritative records"
+    ],
+    "status": "implemented",
+    "evidence": "JSON ingestion and database-backed story register implemented. Weaviate details awaited."
+  }
+]

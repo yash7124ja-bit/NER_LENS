@@ -48,6 +48,7 @@ class Settings:
     proxy_secret: str = ""
     providers: dict[str, str] = field(default_factory=dict, repr=False)
     source_refresh_seconds: int = 3600
+    map_style_url: str = ""
     max_request_bytes: int = 3 * 1024 * 1024
 
     @classmethod
@@ -90,11 +91,21 @@ class Settings:
             )
             + tuple(filter(None, [os.getenv("RENDER_EXTERNAL_HOSTNAME")])),
             proxy_secret=os.getenv("PROXY_SECRET", ""),
-            providers={name: os.getenv(name, "") for name in (
-                "COPERNICUS_API_URL", "COPERNICUS_API_KEY", "NASA_EARTHDATA_TOKEN",
-                "MAPPLS_API_KEY", "GRAPHHOPPER_API_KEY", "SACHET_RSS_URL", "IMD_API_STATUS",
-                "IMD_API_URL", "SOURCE_ROUTE_POINTS",
-            )},
+            providers={
+                name: os.getenv(name, "")
+                for name in (
+                    "COPERNICUS_API_URL",
+                    "COPERNICUS_API_KEY",
+                    "NASA_EARTHDATA_TOKEN",
+                    "MAPPLS_API_KEY",
+                    "GRAPHHOPPER_API_KEY",
+                    "SACHET_RSS_URL",
+                    "IMD_API_STATUS",
+                    "IMD_API_URL",
+                    "SOURCE_ROUTE_POINTS",
+                )
+            },
             source_refresh_seconds=positive("SOURCE_REFRESH_SECONDS", 3600),
+            map_style_url=os.getenv("MAP_STYLE_URL", ""),
             max_request_bytes=positive("MAX_REQUEST_BYTES", 3 * 1024 * 1024),
         )

@@ -8,6 +8,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from ner_lens import administration as _admin_models  # noqa: F401
 from ner_lens import media as _media_models  # noqa: F401
 from ner_lens import operations as _operation_models  # noqa: F401
 from ner_lens import routing as _routing_models  # noqa: F401
