@@ -39,15 +39,25 @@ Cloudflare, outside the sleeping backend. It rejects non-ready/HTML responses.
 It cannot prevent free-tier quota suspension, maintenance or database expiration.
 The standalone Python script remains available for an external host.
 
-## Verification and current blockers
+## Verified deployment — 14 September 2026
 
-Local validation passed: 60 API/identity/foundation tests, 4 frontend/Worker tests,
-Ruff, TypeScript and Vite build. A real PostgreSQL round-trip has not yet passed:
-external TLS access failed, so startup must verify it on Render's internal network.
-Render creation was rejected because the private repository is not connected.
-Cloudflare publication was rejected with error 10034 (email verification required).
-Neither application is publicly live yet.
+- Frontend: https://ner-lens.ner-lens-web.workers.dev
+- Backend: https://ner-lens-api.onrender.com
+- Render service: srv-dajrbt2d0e5s73desrp0
+- Postgres: dpg-dajqr2fqj5pc73eo3gpg-a (Singapore, PostgreSQL 17)
 
-The created free database expires on 14 October 2026. Pings do not extend its life.
-After the account steps, deploy and verify ready/login/reload/corridor/logout through
-Cloudflare, then replace this blocker record with verified URLs and results.
+Render startup passed Alembic migrations, scoped corridor reads and a real PostGIS
+geometry round-trip over the internal connection. The configured account signed in
+through Cloudflare, loaded all six synthetic segments, restored after reload and
+signed out. Cookies are unreadable to JavaScript; browser local/session storage are
+empty. Direct API access without the proxy secret is denied. Both public and proxied
+readiness return ready.
+
+Bootstrap email/password/display-name/role environment variables were removed after
+provisioning. Account hashes, roles and sessions now persist in Postgres. Database
+external IP access is disabled. Cloudflare's scheduled handler is configured for
+*/10 * * * *; backend readiness was manually verified. This is not an uptime guarantee.
+
+Local checks: 145 backend tests, 4 frontend/Worker tests, Ruff, TypeScript and Vite
+build passed. Hosted screenshots are ignored under frontend output/playwright.
+The free Postgres database expires on 14 October 2026; pings do not extend its life.
