@@ -14,6 +14,7 @@ from ner_lens.identity.models import AuditEvent, IdempotencyRecord
 
 
 def test_environment_defaults_are_usable_and_match_migration_database(monkeypatch):
+    monkeypatch.setenv("NER_LENS_ENV_FILE", "")
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("NER_LENS_ENV", raising=False)
     monkeypatch.delenv("API_REQUEST_TIMEOUT_SECONDS", raising=False)

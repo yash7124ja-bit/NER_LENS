@@ -132,8 +132,8 @@ class SegmentState(Contract):
     vehicle_constraints: dict[str, object]
     operational_status: UnknownStatus = Field(default_factory=UnknownStatus)
     risk: UnavailableRisk = Field(default_factory=UnavailableRisk)
-    evidence_age_seconds: None = None
-    source_health: Literal["failed"] = "failed"
+    evidence_age_seconds: int | None = None
+    source_health: Literal["no_evidence", "reviewed_evidence"] = "no_evidence"
     evidence: list[object] | None = Field(default=None, exclude_if=lambda value: value is None)
 
 

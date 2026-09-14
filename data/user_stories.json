@@ -62,7 +62,7 @@
       "No feasible route is an explicit outcome"
     ],
     "status": "implemented",
-    "evidence": "Baseline comparison API and UI exist. Live vehicle legality, approved risk policy and alternative-route validation remain pending."
+    "evidence": "Mappls-backed route comparison and visible closure exclusions are implemented. Vehicle legality and approved hazard policy remain unverified."
   },
   {
     "id": "SIH-06",
@@ -115,7 +115,7 @@
       "EXIF location is stripped"
     ],
     "status": "external_dependency",
-    "evidence": "API quarantine/derivative tests pass; production malware scanner and upload UI remain pending."
+    "evidence": "Browser photo save/reload/upload and private scan status verified. Production malware scanner remains unconfigured; pending images cannot be viewed."
   },
   {
     "id": "SIH-10",

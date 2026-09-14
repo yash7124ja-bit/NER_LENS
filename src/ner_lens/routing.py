@@ -11,11 +11,13 @@ from sqlalchemy import JSON, DateTime, ForeignKey, String, UniqueConstraint, sel
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ner_lens.common.idempotency import canonical_request_hash, validate_idempotency_key
+from ner_lens.config import utc_datetime
 from ner_lens.corridor.models import Base, CorridorVersion, RoadSegment
 from ner_lens.identity.models import AuditEvent
+from ner_lens.identity.replay import authorize_corridor
 from ner_lens.identity.service import AuthorizationService, ResourceScope
 from ner_lens.operations import Mission, Point, effective_status
-from ner_lens.sources import retrieve
+from ner_lens.sources import SourceSnapshot, retrieve
 from ner_lens.spatial import assert_corridor_point, projected_corridor
 
 
@@ -53,6 +55,61 @@ class RouteRequest(BaseModel):
 
 def build_router(factory, current_actor, settings):
     router = APIRouter(tags=["routing"])
+
+    @router.get("/v1/corridors/{corridor_id}/map-route")
+    def map_route(corridor_id: str, request: Request, actor=Depends(current_actor)):
+        with factory() as session:
+            corridor = session.get(CorridorVersion, corridor_id)
+            if not corridor:
+                raise HTTPException(404, "corridor_not_found")
+            if not authorize_corridor(
+                factory, actor, request.state.request_id, jurisdiction_id=corridor.jurisdiction_id
+            ):
+                raise HTTPException(403)
+            now = datetime.now(timezone.utc)
+            snapshots = session.scalars(
+                select(SourceSnapshot)
+                .where(SourceSnapshot.source == "mappls", SourceSnapshot.status == "available")
+                .order_by(SourceSnapshot.retrieved_at.desc())
+                .limit(50)
+            ).all()
+            for snapshot in snapshots:
+                if (
+                    now - utc_datetime(snapshot.retrieved_at)
+                ).total_seconds() < settings.source_refresh_seconds:
+                    for record in snapshot.records:
+                        if record.get("corridor_id") == corridor_id:
+                            return {
+                                "provider": "mappls",
+                                "retrieved_at": utc_datetime(snapshot.retrieved_at),
+                                "route": record,
+                                "cached": True,
+                            }
+            segments = session.scalars(
+                select(RoadSegment)
+                .where(RoadSegment.corridor_version_id == corridor_id)
+                .order_by(RoadSegment.external_ref)
+            ).all()
+            if not segments:
+                raise HTTPException(409, "corridor_has_no_segments")
+            points = [segments[0].geometry["coordinates"][0]]
+            points.extend(segment.geometry["coordinates"][-1] for segment in segments)
+            snapshot = retrieve("mappls", settings, points=points)
+            if snapshot.status != "available":
+                session.add(snapshot)
+                session.commit()
+                raise HTTPException(502, "mappls_" + snapshot.reason)
+            snapshot.records = [
+                {**record, "corridor_id": corridor_id} for record in snapshot.records
+            ]
+            session.add(snapshot)
+            session.commit()
+            return {
+                "provider": "mappls",
+                "retrieved_at": utc_datetime(snapshot.retrieved_at),
+                "route": snapshot.records[0],
+                "cached": False,
+            }
 
     @router.post("/v1/routes/compare")
     def compare(
@@ -103,8 +160,9 @@ def build_router(factory, current_actor, settings):
                 assert_corridor_point(session, corridor.id, body.destination.coordinates)
             except ValueError:
                 raise HTTPException(422, "outside_corridor_bounds") from None
+            provider = "mappls" if settings.providers.get("MAPPLS_API_KEY") else "graphhopper"
             snapshot = retrieve(
-                "graphhopper",
+                provider,
                 settings,
                 points=[body.origin.coordinates, body.destination.coordinates],
             )
@@ -177,6 +235,8 @@ def build_router(factory, current_actor, settings):
                 )
             result = {
                 "comparison_id": str(uuid4()),
+                "provider": provider,
+                "retrieved_at": utc_datetime(snapshot.retrieved_at).isoformat(),
                 "graph_version_id": corridor.graph_version,
                 "policy_id": None,
                 "policy_version": None,

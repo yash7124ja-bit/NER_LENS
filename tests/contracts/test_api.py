@@ -57,7 +57,7 @@ def test_clean_bootstrap_and_paginated_truthful_corridor(api):
             assert segment["operational_status"]["valid_until"] is None
             assert segment["risk"]["probability"] is None
             assert segment["risk"]["state"] == "insufficient_evidence"
-            assert segment["source_health"] == "failed"
+            assert segment["source_health"] == "no_evidence"
             assert segment["evidence_age_seconds"] is None
             assert segment["external_refs"][0]["source"] != "osm"
             assert "evidence" not in segment
@@ -188,6 +188,7 @@ def test_openapi_contains_only_implemented_routes_and_matches_snapshot(api):
     client, _, _ = api
     document = client.get("/openapi.json").json()
     assert set(document["paths"]) == {
+        "/v1/corridors/{corridor_id}/map-route",
         "/v1/user-stories/search",
         "/v1/admin/user-stories/reindex",
         "/health/sources",
@@ -400,3 +401,90 @@ def test_super_admin_scope_user_creation_and_story_ingestion(api):
     result = client.get("/v1/user-stories", params={"corridor_id": corridor}).json()
     assert result["stories"] == [story] and result["vector_index"] == "not_configured"
     assert client.get("/v1/maps/config").json()["style_url"] is None
+
+
+def test_mappls_map_route_scoped_cached_and_does_not_change_status(api, monkeypatch):
+    from ner_lens.sources import SourceSnapshot
+
+    client, _, _ = api
+    cid = client.get("/v1/corridors").json()["corridors"][0]["corridor_id"]
+    calls = []
+
+    def provider(source, settings, *, points):
+        calls.append((source, points))
+        return SourceSnapshot(
+            id=str(uuid4()),
+            source=source,
+            url="https://route.mappls.com",
+            retrieved_at=datetime.now(timezone.utc),
+            status="available",
+            reason="retrieval_validated",
+            parser_version="test",
+            records=[
+                {
+                    "geometry": {"type": "LineString", "coordinates": points},
+                    "distance_m": 1000,
+                    "duration_seconds": 90,
+                }
+            ],
+        )
+
+    monkeypatch.setattr("ner_lens.routing.retrieve", provider)
+    first = client.get(f"/v1/corridors/{cid}/map-route")
+    assert first.status_code == 200 and first.json()["provider"] == "mappls"
+    assert client.get(f"/v1/corridors/{cid}/map-route").json()["cached"]
+    assert len(calls) == 1 and calls[0][0] == "mappls"
+    state = client.get(f"/v1/corridors/{cid}/state").json()
+    assert all(s["operational_status"]["value"] == "unknown" for s in state["segments"])
+    client.headers.pop("Authorization")
+    assert client.get(f"/v1/corridors/{cid}/map-route").status_code == 401
+
+
+def test_reviewed_evidence_age_is_observation_time_and_latest_review_wins(api):
+    from ner_lens.operations import EvidenceReview, FieldReport
+
+    client, factory, _ = api
+    cid = client.get("/v1/corridors").json()["corridors"][0]["corridor_id"]
+    sid = client.get(f"/v1/corridors/{cid}/state").json()["segments"][0]["segment_id"]
+    observed = datetime.now(timezone.utc) - timedelta(hours=2)
+    rid = str(uuid4())
+    with factory.begin() as session:
+        jurisdiction = session.get(CorridorVersion, cid).jurisdiction_id
+        session.add(
+            FieldReport(
+                id=rid,
+                client_report_id=rid,
+                actor_id=VIEWER,
+                segment_id=sid,
+                jurisdiction_id=jurisdiction,
+                received_at=datetime.now(timezone.utc),
+                payload={"observed_at": observed.isoformat()},
+                response={},
+            )
+        )
+        session.flush()
+        session.add(
+            EvidenceReview(
+                id=str(uuid4()),
+                evidence_id=rid,
+                actor_id=VIEWER,
+                created_at=datetime.now(timezone.utc),
+                payload={"action": "accept"},
+            )
+        )
+    segment = client.get(f"/v1/corridors/{cid}/state").json()["segments"][0]
+    assert segment["source_health"] == "reviewed_evidence"
+    assert 7200 <= segment["evidence_age_seconds"] < 7220
+    assert segment["operational_status"]["value"] == "unknown"
+    with factory.begin() as session:
+        session.add(
+            EvidenceReview(
+                id=str(uuid4()),
+                evidence_id=rid,
+                actor_id=VIEWER,
+                created_at=datetime.now(timezone.utc),
+                payload={"action": "reject"},
+            )
+        )
+    segment = client.get(f"/v1/corridors/{cid}/state").json()["segments"][0]
+    assert segment["source_health"] == "no_evidence" and segment["evidence_age_seconds"] is None

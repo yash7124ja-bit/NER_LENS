@@ -174,7 +174,8 @@ def create_app(
             401: "A valid sign-in session is required",
             403: "Access is not permitted",
             404: "Resource was not found",
-            503: "Replay database is not ready",
+            503: "Database is not ready",
+            502: "The external provider could not complete the request. Retry shortly.",
             429: "Too many sign-in attempts. Please try again later.",
         }
         return error(

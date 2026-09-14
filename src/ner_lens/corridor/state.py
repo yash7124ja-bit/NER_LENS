@@ -119,7 +119,7 @@ def read_state(
             raise ValueError("Cursor does not belong to this corridor")
         start = indices[0] + 1
     page = rows[start : start + query.limit]
-    from ner_lens.operations import effective_status
+    from ner_lens.operations import EvidenceReview, FieldReport, effective_status
 
     with factory() as session:
         decisions = {
@@ -128,6 +128,24 @@ def read_state(
             )
             for row in page
         }
+    accepted = {row.id: [] for row in page}
+    with factory() as session:
+        reports = session.scalars(
+            select(FieldReport).where(FieldReport.segment_id.in_(accepted))
+        ).all()
+        for report in reports:
+            review = session.scalar(
+                select(EvidenceReview)
+                .where(
+                    EvidenceReview.evidence_id == report.id,
+                    EvidenceReview.created_at <= (query.at or now),
+                )
+                .order_by(EvidenceReview.created_at.desc())
+                .limit(1)
+            )
+            observed = datetime.fromisoformat(report.payload["observed_at"])
+            if review and review.payload["action"] == "accept" and observed <= (query.at or now):
+                accepted[report.segment_id].append(observed)
     return CorridorState(
         corridor_id=corridor_id,
         corridor_version_id=UUID(version.id),
@@ -145,6 +163,12 @@ def read_state(
                 segment_type=row.segment_type,
                 direction=row.direction,
                 vehicle_constraints=row.vehicle_constraints,
+                evidence_age_seconds=int(
+                    ((query.at or now) - max(accepted[row.id])).total_seconds()
+                )
+                if accepted[row.id]
+                else None,
+                source_health="reviewed_evidence" if accepted[row.id] else "no_evidence",
                 evidence=[] if query.include_evidence else None,
             )
             for row in page
