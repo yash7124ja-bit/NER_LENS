@@ -1,6 +1,8 @@
 """Replay API shell. Start with uvicorn ner_lens.app:app --host 127.0.0.1."""
 
+import asyncio
 import hmac
+import logging
 from contextlib import asynccontextmanager
 from typing import Annotated
 from urllib.parse import urlsplit
@@ -34,6 +36,8 @@ from ner_lens.db import build_session_factory
 from ner_lens.identity.accounts import InvalidCredentials, RateLimited, login, logout, profile
 from ner_lens.identity.replay import authenticate
 from ner_lens.identity.service import AuthContext
+from ner_lens.sources import health as source_health
+from ner_lens.sources import refresh as refresh_sources
 
 _migration_config = Config()
 _migration_config.set_main_option("script_location", str(PROJECT_ROOT / "migrations"))
@@ -60,7 +64,25 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        async def poll_sources():
+            while True:
+                try:
+                    await asyncio.to_thread(
+                        refresh_sources, factory, settings,
+                    )
+                except Exception:
+                    # Database failures must not terminate the API or expose provider secrets.
+                    logging.getLogger(__name__).warning("Source collection could not be persisted")
+                await asyncio.sleep(settings.source_refresh_seconds)
+
+        task = asyncio.create_task(poll_sources()) if any(settings.providers.values()) else None
         yield
+        if task:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
         if owned_factory:
             factory.kw["bind"].dispose()
 
@@ -260,6 +282,7 @@ def create_app(
                 "idempotency_record",
                 "local_account",
                 "login_throttle",
+                "source_snapshot",
             }
             if not required.issubset(inspector.get_table_names()):
                 raise HTTPException(503)
@@ -273,6 +296,11 @@ def create_app(
     def ready():
         require_database()
         return {"status": "ready", "components": {"database": "ready", "migrations": "compatible"}}
+
+    @app.get("/health/sources")
+    def sources():
+        require_database()
+        return source_health(factory, settings)
 
     @app.get("/v1/corridors", response_model=CorridorList)
     def corridors(request: Request, actor: Annotated[AuthContext, Depends(current_actor)]):

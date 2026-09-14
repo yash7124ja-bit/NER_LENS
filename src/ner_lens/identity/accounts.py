@@ -270,12 +270,13 @@ def logout(factory: sessionmaker[Session], token: str, request_id: str) -> None:
 
 
 def main() -> None:
+    settings = Settings.from_env()
     email = os.getenv("NER_LENS_BOOTSTRAP_EMAIL") or input("Email: ")
     password = os.getenv("NER_LENS_BOOTSTRAP_PASSWORD") or getpass.getpass("Password: ")
     display_name = os.getenv("NER_LENS_BOOTSTRAP_DISPLAY_NAME") or input("Display name: ")
     roles = tuple(filter(None, os.getenv("NER_LENS_BOOTSTRAP_ROLES", "").split(",")))
     scopes = tuple(filter(None, os.getenv("NER_LENS_BOOTSTRAP_JURISDICTION_IDS", "").split(",")))
-    factory = build_session_factory(Settings.from_env())
+    factory = build_session_factory(settings)
     provision_account(factory, email, password, display_name, roles, scopes)
     print("Account provisioned.")
 

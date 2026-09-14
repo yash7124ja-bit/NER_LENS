@@ -190,6 +190,7 @@ def test_openapi_contains_only_implemented_routes_and_matches_snapshot(api):
     assert set(document["paths"]) == {
         "/health/live",
         "/health/ready",
+        "/health/sources",
         "/v1/corridors",
         "/v1/corridors/{corridor_id}/state",
         "/v1/auth/login",

@@ -28,10 +28,11 @@ def initialize(settings: Settings) -> str:
     if ":memory:" in settings.database_url or settings.database_url.rstrip("/") == "sqlite:":
         raise ValueError("Initialization requires a persistent SQLite replay file")
     config = Config(str(PROJECT_ROOT / "alembic.ini"))
+    config.attributes["skip_env_file"] = True
     config.set_main_option("script_location", str(PROJECT_ROOT / "migrations"))
     config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
     if (
-        normalize_database_url(os.getenv("DATABASE_URL", settings.database_url))
+        normalize_database_url(os.getenv("DATABASE_URL") or settings.database_url)
         != settings.database_url
     ):
         raise ValueError("DATABASE_URL must agree with the requested replay database")

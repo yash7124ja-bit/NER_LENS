@@ -57,14 +57,11 @@ not implement the specifications' future OIDC/PKCE/MFA workflow.
 
 Legacy CLI/test bearer sessions remain supported via `python -m ner_lens.replay
 --token-file .replay-token-next`. The browser does not use bearer-token entry.
-No `.env` file is loaded automatically. The default database is
-`sqlite:///ner_lens_replay.sqlite`, relative to the current working directory. For
-an alternate disposable store set `DATABASE_URL` in the shell before both commands.
-Only `NER_LENS_ENV=replay` and SQLite are supported by this local entrypoint. Existing
-provider credentials are neither read nor required. Keep both servers on loopback.
-The client proxies `/v1` and `/health` to port 8000; no cross-origin bearer access or
-public deployment is enabled.
-
+The repository `.env` is loaded automatically by API, setup and provider commands.
+Injected environment variables take precedence; `NER_LENS_ENV_FILE` selects another
+file, and an empty value disables file loading for isolated tests. Provider credentials
+stay on the backend. See [provider integration](docs/PROVIDERS.md) for live access,
+source snapshots, refresh cadence and the IMD permission gate.
 ## Implemented API
 
 - `POST /v1/auth/login`: validate a database account and issue a cookie session.
@@ -78,7 +75,7 @@ public deployment is enabled.
 
 OpenAPI is generated from the application at `/openapi.json`; `/docs` is the local
 interactive reference. The checked-in snapshot is [docs/openapi/v1.json](docs/openapi/v1.json).
-No review/status/route/mission/source-health API is advertised before integration.
+`GET /health/sources` returns persisted provider access, failure and freshness checks. No review/status/mission API is advertised before integration.
 
 ## Validate
 
@@ -90,12 +87,9 @@ immediately and every 600 seconds, with a 30-second timeout. Ctrl+C stops it.
 `--once` performs one check with exit code 0 for ready or 1 for unavailable, for an
 external scheduler. No service URL or credentials are embedded in the script.
 
-This script is not yet scheduled or pointed at a deployed service. It cannot keep
-Render awake if its own host sleeps. Render's free tier has a 15-minute idle timeout,
-750 shared instance hours/month, ephemeral local files, and a 30-day free Postgres
-lifetime. Pings do not remove those limits or guarantee uptime. See
-[Render free services](https://render.com/docs/free). The current SQLite-only backend
-still needs deployment/database integration before it can safely run there.
+The deployed Cloudflare Worker runs the external readiness check every ten minutes.
+Pings do not remove Render's free-tier quotas or extend the free Postgres expiry.
+See [deployment](docs/DEPLOYMENT.md) for the hosted PostgreSQL/PostGIS setup.
 
 ```powershell
 uv run python -m pytest -q

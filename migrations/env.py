@@ -8,7 +8,8 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from ner_lens.config import normalize_database_url
+from ner_lens import sources as _source_models  # noqa: F401
+from ner_lens.config import load_environment, normalize_database_url
 from ner_lens.corridor.models import Base
 from ner_lens.identity import models as _identity_models  # noqa: F401
 
@@ -21,6 +22,9 @@ DEFAULT_DATABASE_URL = "sqlite:///ner_lens_replay.sqlite"
 
 
 def database_url() -> str:
+    # An explicit Alembic URL (tests/initialization) takes precedence over the local file.
+    if not config.attributes.get("skip_env_file"):
+        load_environment()
     return normalize_database_url(
         os.getenv("DATABASE_URL")
         or config.get_main_option("sqlalchemy.url")

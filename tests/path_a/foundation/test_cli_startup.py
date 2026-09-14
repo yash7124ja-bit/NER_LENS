@@ -38,4 +38,6 @@ def test_replay_environment_does_not_require_postgres_driver():
     active_database_lines = [
         line for line in env_example.splitlines() if line.startswith("DATABASE_URL=")
     ]
-    assert active_database_lines == ["DATABASE_URL=sqlite:///ner_lens_replay.sqlite"]
+    assert active_database_lines == ["DATABASE_URL="]
+    assert all(not line.split("=", 1)[1] for line in env_example.splitlines()
+               if line and not line.startswith("#"))

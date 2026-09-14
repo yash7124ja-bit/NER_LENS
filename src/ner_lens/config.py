@@ -3,8 +3,19 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+
+def load_environment() -> None:
+    """Local file is a fallback; injected deployment/test values always win."""
+    if os.getenv("NER_LENS_ENV_FILE") == "":
+        return
+    path = os.getenv("NER_LENS_ENV_FILE", str(Path(__file__).resolve().parents[2] / ".env"))
+    load_dotenv(path, override=False, interpolate=False)
 
 
 def normalize_database_url(url: str) -> str:
@@ -35,10 +46,13 @@ class Settings:
     auth_allowed_origins: tuple[str, ...] = ()
     allowed_hosts: tuple[str, ...] = ("localhost", "127.0.0.1", "testserver")
     proxy_secret: str = ""
+    providers: dict[str, str] = field(default_factory=dict, repr=False)
+    source_refresh_seconds: int = 3600
 
     @classmethod
     def from_env(cls) -> "Settings":
-        timeout = os.getenv("API_REQUEST_TIMEOUT_SECONDS", "10")
+        load_environment()
+        timeout = os.getenv("API_REQUEST_TIMEOUT_SECONDS") or "10"
         try:
             timeout_seconds = int(timeout)
         except ValueError as exc:
@@ -47,16 +61,16 @@ class Settings:
             raise ValueError("API_REQUEST_TIMEOUT_SECONDS must be positive")
 
         def positive(name: str, default: int) -> int:
-            value = int(os.getenv(name, str(default)))
+            value = int(os.getenv(name) or str(default))
             if value <= 0:
                 raise ValueError(f"{name} must be positive")
             return value
 
         return cls(
             database_url=normalize_database_url(
-                os.getenv("DATABASE_URL", "sqlite:///ner_lens_replay.sqlite")
+                os.getenv("DATABASE_URL") or "sqlite:///ner_lens_replay.sqlite"
             ),
-            environment=os.getenv("NER_LENS_ENV", cls().environment),
+            environment=os.getenv("NER_LENS_ENV") or cls().environment,
             api_request_timeout_seconds=timeout_seconds,
             session_ttl_seconds=positive("SESSION_TTL_SECONDS", cls().session_ttl_seconds),
             login_attempt_limit=positive("LOGIN_ATTEMPT_LIMIT", cls().login_attempt_limit),
@@ -75,4 +89,10 @@ class Settings:
             )
             + tuple(filter(None, [os.getenv("RENDER_EXTERNAL_HOSTNAME")])),
             proxy_secret=os.getenv("PROXY_SECRET", ""),
+            providers={name: os.getenv(name, "") for name in (
+                "COPERNICUS_API_URL", "COPERNICUS_API_KEY", "NASA_EARTHDATA_TOKEN",
+                "MAPPLS_API_KEY", "GRAPHHOPPER_API_KEY", "SACHET_RSS_URL", "IMD_API_STATUS",
+                "IMD_API_URL", "SOURCE_ROUTE_POINTS",
+            )},
+            source_refresh_seconds=positive("SOURCE_REFRESH_SECONDS", 3600),
         )
