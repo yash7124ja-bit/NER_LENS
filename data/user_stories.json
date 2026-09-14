@@ -153,7 +153,7 @@
       "Status is shown without claiming unverified completion",
       "Optional vector index does not replace authoritative records"
     ],
-    "status": "implemented",
-    "evidence": "JSON ingestion and database-backed story register implemented. Weaviate details awaited."
+    "status": "verified_replay",
+    "evidence": "12 stories persisted in PostgreSQL and indexed in Weaviate. Live BM25 medicine-delivery search and idempotent reindex verified; semantic embeddings are not enabled."
   }
 ]
