@@ -48,6 +48,7 @@ class Settings:
     proxy_secret: str = ""
     providers: dict[str, str] = field(default_factory=dict, repr=False)
     source_refresh_seconds: int = 3600
+    max_request_bytes: int = 3 * 1024 * 1024
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -95,4 +96,5 @@ class Settings:
                 "IMD_API_URL", "SOURCE_ROUTE_POINTS",
             )},
             source_refresh_seconds=positive("SOURCE_REFRESH_SECONDS", 3600),
+            max_request_bytes=positive("MAX_REQUEST_BYTES", 3 * 1024 * 1024),
         )

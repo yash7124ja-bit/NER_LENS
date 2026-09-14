@@ -1,0 +1,49 @@
+name: ner-lens-local
+services:
+  web:
+    build: ../NER_LENS_FRONTEND
+    ports: ["127.0.0.1:8080:80"]
+    depends_on: [api]
+  api:
+    build:
+      context: .
+      target: api
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set the container PostgreSQL URL using host db}
+      NER_LENS_ENV: local
+      NER_LENS_ENV_FILE: ""
+      ALLOWED_HOSTS: localhost,127.0.0.1,api
+      AUTH_ALLOWED_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+      SESSION_COOKIE_SECURE: "false"
+      GRAPHHOPPER_URL: http://graphhopper:8989
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: postgis/postgis:17-3.5@sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
+    ports: ["127.0.0.1:5433:5432"]
+    volumes: ["database:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  graphhopper:
+    build:
+      context: .
+      target: graphhopper
+    ports: ["127.0.0.1:8989:8989"]
+    volumes:
+      - type: bind
+        source: ${GRAPHHOPPER_PBF:?Set retained PBF absolute path}
+        target: /data/north-eastern-zone-260909.osm.pbf
+        read_only: true
+      - graph:/data/graph-cache
+volumes:
+  database:
+  graph:

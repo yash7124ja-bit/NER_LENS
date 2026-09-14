@@ -2,8 +2,11 @@
 
 import asyncio
 import hmac
+import json
 import logging
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
@@ -36,6 +39,8 @@ from ner_lens.db import build_session_factory
 from ner_lens.identity.accounts import InvalidCredentials, RateLimited, login, logout, profile
 from ner_lens.identity.replay import authenticate
 from ner_lens.identity.service import AuthContext
+from ner_lens.operations import build_router as operations_router
+from ner_lens.routing import build_router as routing_router
 from ner_lens.sources import health as source_health
 from ner_lens.sources import refresh as refresh_sources
 
@@ -68,7 +73,9 @@ def create_app(
             while True:
                 try:
                     await asyncio.to_thread(
-                        refresh_sources, factory, settings,
+                        refresh_sources,
+                        factory,
+                        settings,
                     )
                 except Exception:
                     # Database failures must not terminate the API or expose provider secrets.
@@ -104,6 +111,19 @@ def create_app(
                 request.headers.get("x-ner-lens-proxy", ""), settings.proxy_secret
             ):
                 return error(request, 403, "forbidden", "Access is not permitted")
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+            try:
+                check_origin(request)
+            except HTTPException:
+                return error(request, 403, "forbidden", "Request origin is not permitted")
+            length = 0
+            chunks = []
+            async for chunk in request.stream():
+                length += len(chunk)
+                if length > settings.max_request_bytes:
+                    return error(request, 413, "payload_too_large", "Request exceeds upload limit")
+                chunks.append(chunk)
+            request._body = b"".join(chunks)
         try:
             response = await call_next(request)
         except Exception:
@@ -142,6 +162,11 @@ def create_app(
             403: "forbidden",
             404: "not_found",
             405: "invalid_request",
+            409: "conflict",
+            413: "payload_too_large",
+            415: "unsupported_media_type",
+            422: "unprocessable_entity",
+            502: "upstream_unavailable",
             429: "rate_limited",
             503: "degraded",
         }
@@ -283,6 +308,10 @@ def create_app(
                 "local_account",
                 "login_throttle",
                 "source_snapshot",
+                "status_authority",
+                "field_report",
+                "mission",
+                "route_comparison",
             }
             if not required.issubset(inspector.get_table_names()):
                 raise HTTPException(503)
@@ -298,9 +327,43 @@ def create_app(
         return {"status": "ready", "components": {"database": "ready", "migrations": "compatible"}}
 
     @app.get("/health/sources")
-    def sources():
+    def sources(actor: Annotated[AuthContext, Depends(current_actor)]):
         require_database()
         return source_health(factory, settings)
+
+    @app.get("/v1/models/current")
+    def model_card(actor: Annotated[AuthContext, Depends(current_actor)]):
+        filename = os.getenv("EVALUATION_MODEL_CARD")
+        if not filename:
+            return {
+                "status": "not_measured",
+                "approved_for_operations": False,
+                "metrics": None,
+                "abstention": "No approved, evaluated model is configured.",
+            }
+        try:
+            path = Path(filename)
+            if path.stat().st_size > 2 * 1024 * 1024:
+                raise ValueError()
+            card = json.loads(path.read_text(encoding="utf-8"))
+            if card.get("status") not in {
+                "TEST_ONLY_SYNTHETIC",
+                "UNAPPROVED_RETROSPECTIVE_EVALUATION",
+            }:
+                raise ValueError()
+            fields = (
+                "status",
+                "dataset_sha256",
+                "cutoff",
+                "training_cutoff",
+                "test_season",
+                "results",
+                "limitations",
+                "abstention",
+            )
+            return {**{key: card.get(key) for key in fields}, "approved_for_operations": False}
+        except (OSError, ValueError, AttributeError):
+            raise HTTPException(503) from None
 
     @app.get("/v1/corridors", response_model=CorridorList)
     def corridors(request: Request, actor: Annotated[AuthContext, Depends(current_actor)]):
@@ -331,6 +394,11 @@ def create_app(
         except PermissionError as exc:
             raise HTTPException(403) from exc
 
+    from ner_lens.media import build_router as media_router
+
+    app.include_router(media_router(factory, current_actor))
+    app.include_router(operations_router(factory, current_actor))
+    app.include_router(routing_router(factory, current_actor, settings))
     return app
 
 

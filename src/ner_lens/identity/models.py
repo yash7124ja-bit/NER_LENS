@@ -58,6 +58,15 @@ class LocalAccount(Base):
     password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
 
 
+class StatusAuthority(Base):
+    """Explicit server-side authority grant; an officer role alone is insufficient."""
+
+    __tablename__ = "status_authority"
+    actor_id: Mapped[str] = mapped_column(ForeignKey("actor.id"), primary_key=True)
+    jurisdiction_id: Mapped[str] = mapped_column(ForeignKey("jurisdiction.id"), primary_key=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
 class LoginThrottle(Base):
     __tablename__ = "login_throttle"
 

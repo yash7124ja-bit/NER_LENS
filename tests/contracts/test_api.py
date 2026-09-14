@@ -152,7 +152,7 @@ def test_persisted_session_and_object_scope(api, change, expected):
             if change == "jurisdiction":
                 assignment.jurisdiction_id = None
             else:
-                assignment.role = "dispatcher"
+                assignment.role = "system_admin"
     assert client.get("/v1/corridors").status_code == expected
 
 
@@ -188,14 +188,26 @@ def test_openapi_contains_only_implemented_routes_and_matches_snapshot(api):
     client, _, _ = api
     document = client.get("/openapi.json").json()
     assert set(document["paths"]) == {
-        "/health/live",
-        "/health/ready",
-        "/health/sources",
-        "/v1/corridors",
-        "/v1/corridors/{corridor_id}/state",
-        "/v1/auth/login",
+        "/v1/models/current",
+        "/v1/missions/{mission_id}/start",
         "/v1/auth/session",
         "/v1/auth/logout",
+        "/v1/auth/login",
+        "/v1/corridors/{corridor_id}/state",
+        "/v1/status-decisions",
+        "/v1/field-reports/{report_id}/media",
+        "/health/sources",
+        "/v1/reviews/{evidence_id}",
+        "/v1/routes/compare",
+        "/v1/missions",
+        "/v1/field-reports/{report_id}/media/{slot}",
+        "/health/live",
+        "/v1/missions/{mission_id}/complete",
+        "/v1/missions/{mission_id}/positions",
+        "/v1/field-reports",
+        "/v1/missions/{mission_id}",
+        "/v1/corridors",
+        "/health/ready",
     }
     assert document["paths"]["/v1/corridors"]["get"]["security"] == [
         {"HTTPBearer": []},
@@ -223,7 +235,7 @@ def test_authenticated_authorization_is_audited_with_request_id(api):
         assert token not in str(event.__dict__)
     with factory.begin() as session:
         assignment = session.scalar(select(RoleAssignment).where(RoleAssignment.actor_id == VIEWER))
-        assignment.role = "dispatcher"
+        assignment.role = "system_admin"
     response = client.get("/v1/corridors")
     assert response.status_code == 403
     with factory() as session:

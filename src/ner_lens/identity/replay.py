@@ -10,7 +10,13 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ner_lens.config import utc_datetime
 from ner_lens.db import session_scope
-from ner_lens.identity.models import Actor, Jurisdiction, RoleAssignment, SessionRecord
+from ner_lens.identity.models import (
+    Actor,
+    Jurisdiction,
+    RoleAssignment,
+    SessionRecord,
+    StatusAuthority,
+)
 from ner_lens.identity.service import AuthContext, AuthorizationService, ResourceScope
 
 JURISDICTION = "replay_guwahati_silchar"
@@ -120,4 +126,11 @@ def authenticate(factory: sessionmaker[Session], token: str) -> AuthContext | No
             session_id=record.id,
             token_issued_at=issued,
             expires_at=utc_datetime(record.expires_at),
+            status_authority_actor_id=actor.id
+            if session.scalar(
+                select(StatusAuthority.actor_id)
+                .where(StatusAuthority.actor_id == actor.id, StatusAuthority.active.is_(True))
+                .limit(1)
+            )
+            else None,
         )

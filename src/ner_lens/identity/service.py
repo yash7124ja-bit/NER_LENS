@@ -10,7 +10,13 @@ from typing import Callable
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
-from ner_lens.identity.models import Actor, AuditEvent, RoleAssignment, SessionRecord
+from ner_lens.identity.models import (
+    Actor,
+    AuditEvent,
+    RoleAssignment,
+    SessionRecord,
+    StatusAuthority,
+)
 
 SUPPORTED_ROLES = {
     "field_reporter",
@@ -24,10 +30,18 @@ SUPPORTED_ROLES = {
 
 ROLE_ACTIONS: dict[str, frozenset[str]] = {
     "field_reporter": frozenset(
-        {"create_field_report", "view_own_report", "upload_own_media", "submit_gps"}
+        {
+            "create_field_report",
+            "view_own_report",
+            "upload_own_media",
+            "submit_gps",
+            "read_corridor_state",
+        }
     ),
     "reviewer": frozenset({"review_evidence", "read_corridor_state"}),
-    "dispatcher": frozenset({"create_mission", "compare_routes", "view_mission"}),
+    "dispatcher": frozenset(
+        {"create_mission", "compare_routes", "view_mission", "read_corridor_state"}
+    ),
     "district_officer": frozenset(
         {"publish_status", "expire_status", "approve_alert", "read_corridor_state"}
     ),
@@ -129,16 +143,23 @@ class AuthorizationService:
                     "status authority jurisdiction must be server-derived",
                     request_id,
                 )
-            if (
-                actor.actor_id != REPLAY_STATUS_ACTOR
-                or actor.actor_type != "synthetic"
-                or scope.jurisdiction_id != REPLAY_STATUS_JURISDICTION
-            ):
+            if self._session_factory:
+                with self._session_factory() as session:
+                    grant = session.get(StatusAuthority, (actor.actor_id, scope.jurisdiction_id))
+                    bound_authority = bool(grant and grant.active)
+            else:
+                # Pure replay policy tests retain their explicitly synthetic authority.
+                bound_authority = (
+                    actor.actor_id == REPLAY_STATUS_ACTOR
+                    and actor.actor_type == "synthetic"
+                    and scope.jurisdiction_id == REPLAY_STATUS_JURISDICTION
+                )
+            if not bound_authority:
                 return self._decide(
                     actor,
                     action,
                     "replay_authority_scope_denied",
-                    "synthetic replay authority is bound to its declared jurisdiction",
+                    "no active authority grant exists for this jurisdiction",
                     request_id,
                 )
             if (
@@ -193,7 +214,10 @@ class AuthorizationService:
                 )
             if stored_actor.actor_type != actor.actor_type:
                 return self._decide(
-                    actor, action, "actor_type_denied", "actor type does not match identity",
+                    actor,
+                    action,
+                    "actor_type_denied",
+                    "actor type does not match identity",
                     request_id,
                 )
             stored_session = session.get(SessionRecord, actor.session_id)
@@ -214,7 +238,10 @@ class AuthorizationService:
                 expires_at = expires_at.replace(tzinfo=timezone.utc)
             if actor.token_issued_at != issued_at or actor.expires_at != expires_at:
                 return self._decide(
-                    actor, action, "session_invalid", "session claims do not match identity",
+                    actor,
+                    action,
+                    "session_invalid",
+                    "session claims do not match identity",
                     request_id,
                 )
             assignments = session.scalars(

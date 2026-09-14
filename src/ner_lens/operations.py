@@ -1,0 +1,923 @@
+"""Persisted, scoped report/review/status and mission/GPS operational workflow."""
+
+from __future__ import annotations
+
+import math
+from datetime import datetime, timedelta, timezone
+from typing import Literal
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, UniqueConstraint, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Mapped, mapped_column
+
+from ner_lens.common.idempotency import canonical_request_hash, validate_idempotency_key
+from ner_lens.corridor.models import Base, CorridorVersion, RoadSegment
+from ner_lens.identity.models import Actor, AuditEvent, IdempotencyRecord, RoleAssignment
+from ner_lens.identity.service import AuthContext, AuthorizationService, ResourceScope
+from ner_lens.spatial import assert_corridor_point
+
+
+def now_utc():
+    return datetime.now(timezone.utc)
+
+
+def utc(value):
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+
+
+class FieldReport(Base):
+    __tablename__ = "field_report"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    client_report_id: Mapped[str] = mapped_column(String(128), unique=True)
+    actor_id: Mapped[str] = mapped_column(ForeignKey("actor.id"))
+    segment_id: Mapped[str] = mapped_column(ForeignKey("road_segment.id"), index=True)
+    jurisdiction_id: Mapped[str] = mapped_column(ForeignKey("jurisdiction.id"), index=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict] = mapped_column(JSON)
+    response: Mapped[dict] = mapped_column(JSON)
+
+
+class EvidenceReview(Base):
+    __tablename__ = "evidence_review"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    evidence_id: Mapped[str] = mapped_column(ForeignKey("field_report.id"), index=True)
+    actor_id: Mapped[str] = mapped_column(ForeignKey("actor.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict] = mapped_column(JSON)
+
+
+class StatusDecision(Base):
+    __tablename__ = "status_decision"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    segment_id: Mapped[str] = mapped_column(ForeignKey("road_segment.id"), index=True)
+    jurisdiction_id: Mapped[str] = mapped_column(ForeignKey("jurisdiction.id"), index=True)
+    actor_id: Mapped[str] = mapped_column(ForeignKey("actor.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    effective_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict] = mapped_column(JSON)
+
+
+class Mission(Base):
+    __tablename__ = "mission"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    actor_id: Mapped[str] = mapped_column(ForeignKey("actor.id"))
+    corridor_id: Mapped[str] = mapped_column(ForeignKey("corridor_version.id"))
+    jurisdiction_id: Mapped[str] = mapped_column(ForeignKey("jurisdiction.id"), index=True)
+    graph_version_id: Mapped[str] = mapped_column(String(128))
+    state: Mapped[str] = mapped_column(String(16), default="planned")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict] = mapped_column(JSON)
+
+
+class MissionAssignment(Base):
+    __tablename__ = "mission_assignment"
+    actor_id: Mapped[str] = mapped_column(ForeignKey("actor.id"), primary_key=True)
+    mission_id: Mapped[str] = mapped_column(ForeignKey("mission.id"), primary_key=True)
+
+
+class GPSObservation(Base):
+    __tablename__ = "gps_observation"
+    __table_args__ = (
+        UniqueConstraint("mission_id", "device_id", "sequence", name="uq_gps_sequence"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    mission_id: Mapped[str] = mapped_column(ForeignKey("mission.id"), index=True)
+    device_id: Mapped[str] = mapped_column(String(128))
+    sequence: Mapped[int] = mapped_column(Integer)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict] = mapped_column(JSON)
+    flags: Mapped[list] = mapped_column(JSON)
+
+
+class MutationResponse(Base):
+    __tablename__ = "mutation_response"
+    id: Mapped[str] = mapped_column(ForeignKey("idempotency_record.id"), primary_key=True)
+    body: Mapped[dict] = mapped_column(JSON)
+
+
+class Input(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+
+class Point(Input):
+    type: Literal["Point"] = "Point"
+    coordinates: tuple[float, float]
+
+    @model_validator(mode="before")
+    @classmethod
+    def numeric_coordinates(cls, value):
+        coordinates = value.get("coordinates") if isinstance(value, dict) else None
+        if (
+            not isinstance(coordinates, (list, tuple))
+            or len(coordinates) != 2
+            or any(
+                isinstance(number, bool) or not isinstance(number, (int, float))
+                for number in coordinates
+            )
+        ):
+            raise ValueError("coordinates must contain two JSON numbers")
+        return value
+
+    @model_validator(mode="after")
+    def valid(self):
+        lon, lat = self.coordinates
+        if not -180 <= lon <= 180 or not -90 <= lat <= 90:
+            raise ValueError("coordinates must be [longitude, latitude] in EPSG:4326")
+        return self
+
+
+class ReportInput(Input):
+    client_report_id: str = Field(min_length=1, max_length=128)
+    client_sequence: int = Field(ge=0)
+    segment_id: str = Field(min_length=1, max_length=36)
+    observed_at: AwareDatetime
+    geometry: Point
+    accuracy_m: float = Field(ge=0, le=100000)
+    status_claim: Literal["open", "restricted", "blocked", "closed", "unknown"]
+    condition_code: str = Field(min_length=1, max_length=128)
+    note: str = Field(max_length=4000)
+    device_id: str = Field(min_length=1, max_length=128)
+    clock_offset_seconds: float = Field(default=0, ge=-86400, le=86400)
+
+
+class ReviewInput(Input):
+    action: Literal["accept", "reject", "merge", "needs_clarification"]
+    note: str = Field(min_length=1, max_length=4000)
+    merge_into_evidence_id: str | None = None
+
+    @model_validator(mode="after")
+    def merge_target(self):
+        if (self.action == "merge") != bool(self.merge_into_evidence_id):
+            raise ValueError(
+                "merge action requires a merge target; other actions cannot supply one"
+            )
+        return self
+
+
+class StatusInput(Input):
+    segment_id: str
+    status: Literal["open", "restricted", "closed", "unknown"]
+    vehicle_scope: list[str] = Field(min_length=1, max_length=20)
+    direction: Literal["forward", "reverse", "both"]
+    reason_code: Literal[
+        "authority_order", "flooded", "landslide", "damage", "restriction", "reopened", "expiry"
+    ]
+    evidence_ids: list[str] = Field(default_factory=list, max_length=100)
+    effective_at: AwareDatetime
+    valid_until: AwareDatetime
+    note: str = Field(min_length=1, max_length=4000)
+
+    @model_validator(mode="after")
+    def interval(self):
+        if self.valid_until <= self.effective_at:
+            raise ValueError("valid_until must follow effective_at")
+        return self
+
+
+class Window(Input):
+    start: AwareDatetime
+    end: AwareDatetime
+
+    @model_validator(mode="after")
+    def interval(self):
+        if self.end <= self.start:
+            raise ValueError("delivery end must follow start")
+        return self
+
+
+class Consent(Input):
+    basis: Literal["mission_assignment", "explicit_consent"]
+    recorded_at: AwareDatetime
+
+
+class MissionInput(Input):
+    cargo_class: str = Field(min_length=1, max_length=128)
+    priority: Literal["routine", "high", "emergency"]
+    origin: Point
+    destination: Point
+    delivery_window: Window
+    vehicle_profile: str = Field(min_length=1, max_length=128)
+    vehicle_id: str | None = None
+    corridor_id: str
+    route_id: str | None = None
+    gps_consent: Consent
+    assigned_actor_ids: list[str] = Field(default_factory=list, max_length=100)
+
+
+class Position(Input):
+    sequence: int = Field(ge=0)
+    captured_at: AwareDatetime
+    geometry: Point
+    accuracy_m: float = Field(ge=0, le=100000)
+    speed_mps: float | None = Field(default=None, ge=0, le=1000)
+    heading_deg: float | None = Field(default=None, ge=0, lt=360)
+
+
+class PositionsInput(Input):
+    device_id: str = Field(min_length=1, max_length=128)
+    sequence_start: int = Field(ge=0)
+    points: list[Position] = Field(min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def sequences(self):
+        seq = [point.sequence for point in self.points]
+        if len(set(seq)) != len(seq) or min(seq) != self.sequence_start:
+            raise ValueError("sequences must be unique and sequence_start must equal the minimum")
+        return self
+
+
+def effective_status(session, segment_id, at=None, *, direction="both", vehicle_profile="all"):
+    """Latest applicable decision; expiry never resurrects an older open decision."""
+    at = at or now_utc()
+    rows = session.scalars(
+        select(StatusDecision)
+        .where(
+            StatusDecision.segment_id == segment_id,
+            StatusDecision.effective_at <= at,
+        )
+        .order_by(
+            StatusDecision.effective_at.desc(),
+            StatusDecision.created_at.desc(),
+            StatusDecision.id.desc(),
+        )
+    ).all()
+    applicable = [
+        row
+        for row in rows
+        if (
+            row.payload["direction"] == "both"
+            or direction == "both"
+            or row.payload["direction"] == direction
+        )
+        and (
+            "all" in row.payload["vehicle_scope"]
+            or vehicle_profile == "all"
+            or vehicle_profile in row.payload["vehicle_scope"]
+        )
+    ]
+    # A general read cannot imply every direction/vehicle is open from one scoped decision.
+    if not applicable:
+        return {
+            "segment_id": segment_id,
+            "status": "unknown",
+            "freshness": "missing",
+            "evidence_ids": [],
+        }
+    latest = applicable[0]
+    expired = utc(latest.valid_until) <= at
+    scoped = (direction == "both" and latest.payload["direction"] != "both") or (
+        vehicle_profile == "all" and "all" not in latest.payload["vehicle_scope"]
+    )
+    return {
+        **latest.payload,
+        "decision_id": latest.id,
+        "status": "unknown" if expired or scoped else latest.payload["status"],
+        "freshness": "expired" if expired else "scope_required" if scoped else "current",
+        "operational_mode": "decision_support",
+    }
+
+
+def build_router(factory, current_actor):
+    router = APIRouter(tags=["operations"])
+
+    def audit_authorization(event):
+        with factory.begin() as session:
+            session.add(event)
+
+    authorization = AuthorizationService(session_factory=factory, audit_sink=audit_authorization)
+
+    def fail(code, detail):
+        raise HTTPException(code, detail)
+
+    def authorize(actor, action, jurisdiction, **scope):
+        decision = authorization.authorize(
+            actor, action, ResourceScope(jurisdiction_id=jurisdiction, **scope)
+        )
+        if not decision.allowed:
+            fail(403, decision.code)
+
+    def corridor(session, corridor_id):
+        row = session.get(CorridorVersion, corridor_id)
+        if not row or not row.jurisdiction_id:
+            fail(404, "corridor_not_found")
+        return row
+
+    def segment_scope(session, segment_id):
+        row = session.get(RoadSegment, segment_id)
+        if not row:
+            fail(404, "segment_not_found")
+        return corridor(session, row.corridor_version_id).jurisdiction_id
+
+    def validate_point(session, corridor_id, coordinates):
+        try:
+            assert_corridor_point(session, corridor_id, coordinates)
+        except ValueError as exc:
+            fail(422, str(exc))
+
+    def latest_review(session, evidence_id):
+        return session.scalar(
+            select(EvidenceReview)
+            .where(EvidenceReview.evidence_id == evidence_id)
+            .order_by(EvidenceReview.created_at.desc(), EvidenceReview.id.desc())
+        )
+
+    def mutate(session, actor, path, key, payload, jurisdiction, action, create):
+        try:
+            return apply_mutation(session, actor, path, key, payload, jurisdiction, action, create)
+        except IntegrityError:
+            session.rollback()
+            old = session.scalar(
+                select(IdempotencyRecord).where(
+                    IdempotencyRecord.actor_id == actor.actor_id,
+                    IdempotencyRecord.method == "POST",
+                    IdempotencyRecord.path == path,
+                    IdempotencyRecord.idempotency_key == key,
+                )
+            )
+            if old and old.request_hash == canonical_request_hash(payload):
+                return session.get(MutationResponse, old.id).body
+            fail(409, "idempotency_conflict")
+
+    def apply_mutation(session, actor, path, key, payload, jurisdiction, action, create):
+        try:
+            validate_idempotency_key(key)
+        except ValueError as exc:
+            fail(422, str(exc))
+        digest = canonical_request_hash(payload)
+        old = session.scalar(
+            select(IdempotencyRecord).where(
+                IdempotencyRecord.actor_id == actor.actor_id,
+                IdempotencyRecord.method == "POST",
+                IdempotencyRecord.path == path,
+                IdempotencyRecord.idempotency_key == key,
+            )
+        )
+        if old:
+            if old.request_hash != digest:
+                fail(409, "idempotency_conflict")
+            return session.get(MutationResponse, old.id).body
+        request_id, audit_id = str(uuid4()), str(uuid4())
+        body = create(request_id, audit_id)
+        record_id = str(uuid4())
+        session.add(
+            AuditEvent(
+                id=audit_id,
+                actor_id=actor.actor_id,
+                action=action,
+                target_type="operations",
+                target_id=body.get(
+                    "decision_id", body.get("mission_id", body.get("field_report_id", path))
+                ),
+                request_id=request_id,
+                jurisdiction_id=jurisdiction,
+                before_hash=None,
+                after_hash=canonical_request_hash(body),
+                reason=payload.get("note", action),
+                outcome="allowed",
+            )
+        )
+        session.add(
+            IdempotencyRecord(
+                id=record_id,
+                actor_id=actor.actor_id,
+                method="POST",
+                path=path,
+                idempotency_key=key,
+                request_hash=digest,
+                status_code=201,
+                response_body_hash=canonical_request_hash(body),
+                expires_at=now_utc() + timedelta(days=365),
+            )
+        )
+        session.flush()
+        session.add(MutationResponse(id=record_id, body=body))
+        session.commit()
+        return body
+
+    @router.post("/v1/field-reports", status_code=201)
+    def report(
+        body: ReportInput,
+        actor: AuthContext = Depends(current_actor),
+        idempotency_key: str = Header(),
+        x_ner_lens_actor: str | None = Header(default=None),
+    ):
+        with factory() as session:
+            jurisdiction = segment_scope(session, body.segment_id)
+            authorize(actor, "create_field_report", jurisdiction)
+            if x_ner_lens_actor is not None and x_ner_lens_actor != actor.actor_id:
+                fail(403, "session_actor_changed")
+            validate_point(
+                session,
+                session.get(RoadSegment, body.segment_id).corridor_version_id,
+                body.geometry.coordinates,
+            )
+            payload = body.model_dump(mode="json")
+
+            def create(request_id, _audit):
+                if body.observed_at > now_utc():
+                    fail(422, "observation_in_future")
+                old = session.scalar(
+                    select(FieldReport).where(FieldReport.client_report_id == body.client_report_id)
+                )
+                if old:
+                    if old.actor_id != actor.actor_id or old.payload != payload:
+                        fail(409, "idempotency_conflict")
+                    return old.response
+                report_id = str(uuid4())
+                received = now_utc()
+                response = {
+                    "field_report_id": report_id,
+                    "client_report_id": body.client_report_id,
+                    "sync_state": "accepted_for_review",
+                    "review_state": "unreviewed",
+                    "received_at": received.isoformat(),
+                    "media_state": "none",
+                    "request_id": request_id,
+                }
+                session.add(
+                    FieldReport(
+                        id=report_id,
+                        client_report_id=body.client_report_id,
+                        actor_id=actor.actor_id,
+                        segment_id=body.segment_id,
+                        jurisdiction_id=jurisdiction,
+                        received_at=received,
+                        payload=payload,
+                        response=response,
+                    )
+                )
+                return response
+
+            return mutate(
+                session,
+                actor,
+                "/v1/field-reports",
+                idempotency_key,
+                payload,
+                jurisdiction,
+                "field_report.created",
+                create,
+            )
+
+    @router.get("/v1/field-reports")
+    def reports(
+        segment_id: str,
+        limit: int = Query(100, ge=1, le=500),
+        actor: AuthContext = Depends(current_actor),
+    ):
+        with factory() as session:
+            jurisdiction = segment_scope(session, segment_id)
+            reviewer = "reviewer" in actor.roles
+            authorize(actor, "review_evidence" if reviewer else "view_own_report", jurisdiction)
+            query = select(FieldReport).where(FieldReport.segment_id == segment_id)
+            if not reviewer:
+                query = query.where(FieldReport.actor_id == actor.actor_id)
+            rows = session.scalars(
+                query.order_by(FieldReport.received_at.desc()).limit(limit)
+            ).all()
+            return {
+                "reports": [
+                    {
+                        **row.payload,
+                        **row.response,
+                        "review_state": review.payload["action"]
+                        if (review := latest_review(session, row.id))
+                        else "unreviewed",
+                    }
+                    for row in rows
+                ]
+            }
+
+    @router.post("/v1/reviews/{evidence_id}", status_code=201)
+    def review(
+        evidence_id: str,
+        body: ReviewInput,
+        actor: AuthContext = Depends(current_actor),
+        idempotency_key: str = Header(),
+    ):
+        with factory() as session:
+            report = session.get(FieldReport, evidence_id)
+            if not report:
+                fail(404, "evidence_not_found")
+            authorize(actor, "review_evidence", report.jurisdiction_id)
+
+            def create(request_id, audit_id):
+                if body.action == "merge":
+                    target = session.get(FieldReport, body.merge_into_evidence_id)
+                    if (
+                        not target
+                        or target.segment_id != report.segment_id
+                        or target.id == report.id
+                    ):
+                        fail(422, "merge_target_must_be_other_report_on_same_segment")
+                    target_review = latest_review(session, target.id)
+                    if not target_review or target_review.payload["action"] != "accept":
+                        fail(422, "merge_target_must_be_accepted")
+                review_id = str(uuid4())
+                session.add(
+                    EvidenceReview(
+                        id=review_id,
+                        evidence_id=evidence_id,
+                        actor_id=actor.actor_id,
+                        created_at=now_utc(),
+                        payload=body.model_dump(mode="json"),
+                    )
+                )
+                return {
+                    "review_id": review_id,
+                    "evidence_id": evidence_id,
+                    "review_state": body.action,
+                    "audit_event_id": audit_id,
+                    "request_id": request_id,
+                }
+
+            return mutate(
+                session,
+                actor,
+                f"/v1/reviews/{evidence_id}",
+                idempotency_key,
+                body.model_dump(mode="json"),
+                report.jurisdiction_id,
+                "evidence.reviewed",
+                create,
+            )
+
+    @router.post("/v1/status-decisions", status_code=201)
+    def status(
+        body: StatusInput,
+        actor: AuthContext = Depends(current_actor),
+        idempotency_key: str = Header(),
+    ):
+        with factory() as session:
+            jurisdiction = segment_scope(session, body.segment_id)
+            authorize(
+                actor, "publish_status", jurisdiction, status_authority_actor_id=actor.actor_id
+            )
+            payload = body.model_dump(mode="json")
+
+            def create(request_id, audit_id):
+                if body.valid_until <= now_utc():
+                    fail(422, "status_already_expired")
+                if (
+                    not body.evidence_ids
+                    and body.reason_code != "authority_order"
+                    and body.status != "unknown"
+                ):
+                    fail(422, "accepted_evidence_required")
+                for evidence_id in body.evidence_ids:
+                    evidence = session.get(FieldReport, evidence_id)
+                    revision = latest_review(session, evidence_id)
+                    if (
+                        not evidence
+                        or evidence.segment_id != body.segment_id
+                        or not revision
+                        or revision.payload["action"] != "accept"
+                    ):
+                        fail(422, "accepted_segment_evidence_required")
+                decision_id = str(uuid4())
+                session.add(
+                    StatusDecision(
+                        id=decision_id,
+                        segment_id=body.segment_id,
+                        jurisdiction_id=jurisdiction,
+                        actor_id=actor.actor_id,
+                        created_at=now_utc(),
+                        effective_at=body.effective_at,
+                        valid_until=body.valid_until,
+                        payload=payload,
+                    )
+                )
+                return {
+                    **payload,
+                    "decision_id": decision_id,
+                    "audit_event_id": audit_id,
+                    "request_id": request_id,
+                }
+
+            return mutate(
+                session,
+                actor,
+                "/v1/status-decisions",
+                idempotency_key,
+                payload,
+                jurisdiction,
+                "status.published",
+                create,
+            )
+
+    @router.get("/v1/status-decisions")
+    def statuses(
+        segment_id: str,
+        direction: Literal["forward", "reverse", "both"] = "both",
+        vehicle_profile: str = "all",
+        actor: AuthContext = Depends(current_actor),
+    ):
+        with factory() as session:
+            authorize(actor, "read_corridor_state", segment_scope(session, segment_id))
+            return effective_status(
+                session, segment_id, direction=direction, vehicle_profile=vehicle_profile
+            )
+
+    def mission_scope(session, actor, mission_id, action):
+        row = session.get(Mission, mission_id)
+        if not row:
+            fail(404, "mission_not_found")
+        if action == "submit_gps":
+            if not session.get(MissionAssignment, (actor.actor_id, mission_id)):
+                fail(403, "mission_assignment_required")
+            authorize(actor, action, row.jurisdiction_id)
+        else:
+            authorize(actor, "view_mission", row.jurisdiction_id, owner_actor_id=row.actor_id)
+        return row
+
+    def mission_view(session, row):
+        last = session.scalar(
+            select(GPSObservation)
+            .where(GPSObservation.mission_id == row.id)
+            .order_by(GPSObservation.captured_at.desc())
+            .limit(1)
+        )
+        deadline = datetime.fromisoformat(row.payload["delivery_window"]["end"])
+        return {
+            **row.payload,
+            "mission_id": row.id,
+            "state": row.state,
+            "graph_version_id": row.graph_version_id,
+            "created_at": utc(row.created_at).isoformat(),
+            "started_at": utc(row.started_at).isoformat() if row.started_at else None,
+            "jurisdiction_id": row.jurisdiction_id,
+            "last_fix": {**last.payload, "flags": last.flags} if last else None,
+            "last_fix_age_seconds": max(0, (now_utc() - utc(last.captured_at)).total_seconds())
+            if last
+            else None,
+            "completed_at": utc(row.completed_at).isoformat() if row.completed_at else None,
+            "deadline_state": "overdue"
+            if deadline < (utc(row.completed_at) if row.completed_at else now_utc())
+            else "within_window",
+            "delay_estimate": None,
+            "delay_estimate_basis": "no_verified_eta",
+            "checkpoints": [],
+        }
+
+    @router.post("/v1/missions", status_code=201)
+    def mission(
+        body: MissionInput,
+        actor: AuthContext = Depends(current_actor),
+        idempotency_key: str = Header(),
+    ):
+        with factory() as session:
+            graph = corridor(session, body.corridor_id)
+            authorize(actor, "create_mission", graph.jurisdiction_id)
+
+            def create(request_id, _audit):
+                if (
+                    body.delivery_window.end <= now_utc()
+                    or body.gps_consent.recorded_at > now_utc()
+                ):
+                    fail(422, "invalid_deadline_or_consent_time")
+                validate_point(session, graph.id, body.origin.coordinates)
+                validate_point(session, graph.id, body.destination.coordinates)
+                if body.route_id:
+                    fail(422, "route_binding_not_available")
+                for actor_id in body.assigned_actor_ids:
+                    stored = session.get(Actor, actor_id)
+                    assignment = session.scalar(
+                        select(RoleAssignment).where(
+                            RoleAssignment.actor_id == actor_id,
+                            RoleAssignment.role == "field_reporter",
+                            RoleAssignment.jurisdiction_id == graph.jurisdiction_id,
+                        )
+                    )
+                    if not stored or not stored.active or not assignment:
+                        fail(422, "assigned_actor_must_be_active_scoped_field_reporter")
+                row = Mission(
+                    id=str(uuid4()),
+                    actor_id=actor.actor_id,
+                    corridor_id=graph.id,
+                    jurisdiction_id=graph.jurisdiction_id,
+                    graph_version_id=graph.graph_version,
+                    state="planned",
+                    created_at=now_utc(),
+                    payload=body.model_dump(mode="json"),
+                )
+                session.add(row)
+                session.flush()
+                for actor_id in set(body.assigned_actor_ids):
+                    session.add(MissionAssignment(actor_id=actor_id, mission_id=row.id))
+                return {**mission_view(session, row), "request_id": request_id}
+
+            return mutate(
+                session,
+                actor,
+                "/v1/missions",
+                idempotency_key,
+                body.model_dump(mode="json"),
+                graph.jurisdiction_id,
+                "mission.created",
+                create,
+            )
+
+    @router.get("/v1/missions")
+    def missions(corridor_id: str, actor: AuthContext = Depends(current_actor)):
+        with factory() as session:
+            graph = corridor(session, corridor_id)
+            query = select(Mission).where(Mission.corridor_id == corridor_id)
+            if "field_reporter" in actor.roles:
+                authorize(actor, "submit_gps", graph.jurisdiction_id)
+                query = query.join(MissionAssignment).where(
+                    MissionAssignment.actor_id == actor.actor_id
+                )
+            else:
+                authorize(actor, "view_mission", graph.jurisdiction_id)
+                query = query.where(Mission.actor_id == actor.actor_id)
+            rows = session.scalars(query.order_by(Mission.created_at.desc()).limit(100)).all()
+            return {"missions": [mission_view(session, row) for row in rows]}
+
+    @router.get("/v1/missions/{mission_id}")
+    def get_mission(mission_id: str, actor: AuthContext = Depends(current_actor)):
+        with factory() as session:
+            action = "submit_gps" if "field_reporter" in actor.roles else "view_mission"
+            return mission_view(session, mission_scope(session, actor, mission_id, action))
+
+    @router.post("/v1/missions/{mission_id}/start", status_code=201)
+    def start(
+        mission_id: str,
+        actor: AuthContext = Depends(current_actor),
+        idempotency_key: str = Header(),
+    ):
+        with factory() as session:
+            action = "submit_gps" if "field_reporter" in actor.roles else "view_mission"
+            row = mission_scope(session, actor, mission_id, action)
+
+            def create(request_id, _audit):
+                if datetime.fromisoformat(row.payload["delivery_window"]["end"]) <= now_utc():
+                    fail(409, "mission_deadline_passed")
+                if row.state != "planned":
+                    fail(409, "mission_already_started")
+                row.state, row.started_at = "active", now_utc()
+                return {
+                    **mission_view(session, row),
+                    "gps_session_id": row.id,
+                    "request_id": request_id,
+                }
+
+            return mutate(
+                session,
+                actor,
+                f"/v1/missions/{mission_id}/start",
+                idempotency_key,
+                {},
+                row.jurisdiction_id,
+                "mission.started",
+                create,
+            )
+
+    @router.post("/v1/missions/{mission_id}/complete", status_code=201)
+    def complete(
+        mission_id: str,
+        actor: AuthContext = Depends(current_actor),
+        idempotency_key: str = Header(),
+    ):
+        with factory() as session:
+            action = "submit_gps" if "field_reporter" in actor.roles else "view_mission"
+            row = mission_scope(session, actor, mission_id, action)
+
+            def create(request_id, _audit):
+                if row.state != "active":
+                    fail(409, "mission_not_active")
+                row.state, row.completed_at = "completed", now_utc()
+                return {**mission_view(session, row), "request_id": request_id}
+
+            return mutate(
+                session,
+                actor,
+                f"/v1/missions/{mission_id}/complete",
+                idempotency_key,
+                {},
+                row.jurisdiction_id,
+                "mission.completed",
+                create,
+            )
+
+    @router.post("/v1/missions/{mission_id}/positions", status_code=201)
+    def positions(
+        mission_id: str,
+        body: PositionsInput,
+        actor: AuthContext = Depends(current_actor),
+        idempotency_key: str = Header(),
+    ):
+        with factory() as session:
+            row = mission_scope(session, actor, mission_id, "submit_gps")
+
+            def create(request_id, _audit):
+                if row.state != "active":
+                    fail(409, "mission_not_active")
+                received = now_utc()
+                accepted, duplicates, rejected, flagged = [], [], [], []
+                for point in sorted(
+                    body.points, key=lambda point: (point.captured_at, point.sequence)
+                ):
+                    payload = point.model_dump(mode="json")
+                    old = session.scalar(
+                        select(GPSObservation).where(
+                            GPSObservation.mission_id == mission_id,
+                            GPSObservation.device_id == body.device_id,
+                            GPSObservation.sequence == point.sequence,
+                        )
+                    )
+                    if old:
+                        if old.payload != payload:
+                            fail(409, "gps_sequence_conflict")
+                        duplicates.append(point.sequence)
+                        continue
+                    if point.captured_at > received or point.captured_at < utc(row.started_at):
+                        rejected.append(point.sequence)
+                        continue
+                    validate_point(session, row.corridor_id, point.geometry.coordinates)
+                    previous = session.scalar(
+                        select(GPSObservation)
+                        .where(
+                            GPSObservation.mission_id == mission_id,
+                            GPSObservation.device_id == body.device_id,
+                            GPSObservation.captured_at <= point.captured_at,
+                        )
+                        .order_by(GPSObservation.captured_at.desc())
+                        .limit(1)
+                    )
+                    flags = []
+                    if previous:
+                        a, b = (
+                            previous.payload["geometry"]["coordinates"],
+                            point.geometry.coordinates,
+                        )
+                        lat1, lat2 = math.radians(a[1]), math.radians(b[1])
+                        h = (
+                            math.sin((lat2 - lat1) / 2) ** 2
+                            + math.cos(lat1)
+                            * math.cos(lat2)
+                            * math.sin(math.radians(b[0] - a[0]) / 2) ** 2
+                        )
+                        distance = 6371000 * 2 * math.asin(min(1, math.sqrt(h)))
+                        seconds = (point.captured_at - utc(previous.captured_at)).total_seconds()
+                        # ponytail: 100 m/s flags only; calibrate by fleet before alerting.
+                        if (
+                            distance
+                            > previous.payload["accuracy_m"] + point.accuracy_m + 100 * seconds
+                        ):
+                            flags.append("impossible_jump")
+                    newest = session.scalar(
+                        select(GPSObservation)
+                        .where(
+                            GPSObservation.mission_id == mission_id,
+                            GPSObservation.device_id == body.device_id,
+                        )
+                        .order_by(GPSObservation.sequence.desc())
+                        .limit(1)
+                    )
+                    if newest and point.sequence < newest.sequence:
+                        flags.append("out_of_order")
+                    session.add(
+                        GPSObservation(
+                            id=str(uuid4()),
+                            mission_id=mission_id,
+                            device_id=body.device_id,
+                            sequence=point.sequence,
+                            captured_at=point.captured_at,
+                            received_at=received,
+                            payload=payload,
+                            flags=flags,
+                        )
+                    )
+                    session.flush()
+                    accepted.append(point.sequence)
+                    if flags:
+                        flagged.append(point.sequence)
+                return {
+                    "mission_id": mission_id,
+                    "accepted": accepted,
+                    "duplicate": duplicates,
+                    "rejected": rejected,
+                    "flagged": flagged,
+                    "received_at": received.isoformat(),
+                    "request_id": request_id,
+                }
+
+            return mutate(
+                session,
+                actor,
+                f"/v1/missions/{mission_id}/positions",
+                idempotency_key,
+                body.model_dump(mode="json"),
+                row.jurisdiction_id,
+                "gps.received",
+                create,
+            )
+
+    return router
