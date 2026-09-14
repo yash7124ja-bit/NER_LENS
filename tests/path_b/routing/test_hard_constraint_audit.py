@@ -16,7 +16,6 @@ bridge/tunnel/access constraints, GraphHopper outage, and no feasible route.
 import json
 from pathlib import Path
 
-import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[3]

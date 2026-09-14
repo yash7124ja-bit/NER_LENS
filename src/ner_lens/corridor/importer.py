@@ -184,6 +184,22 @@ def get_active_corridor(
         )
 
 
+def bind_corridor(
+    factory: sessionmaker[Session], version_id: str, name: str, jurisdiction_id: str
+) -> None:
+    """Explicit operator assignment; migrations never invent an authority scope."""
+    from ner_lens.identity.models import Jurisdiction
+
+    if not name.strip() or len(name) > 255:
+        raise ValueError("corridor name is required and must fit 255 characters")
+    with session_scope(factory) as session:
+        version = session.get(CorridorVersion, version_id)
+        if version is None or session.get(Jurisdiction, jurisdiction_id) is None:
+            raise ValueError("corridor and jurisdiction must exist")
+        version.name = name.strip()
+        version.jurisdiction_id = jurisdiction_id
+
+
 def map_audited_bands_to_segments(
     factory: sessionmaker[Session],
     corridor_version_id: str,
@@ -214,6 +230,8 @@ class CorridorImportService:
         source_url: str,
         specs: list[BandSpec],
         manifest_path: Path = DEFAULT_IMPORT_MANIFEST,
+        name: str | None = None,
+        jurisdiction_id: str | None = None,
     ) -> ImportResult:
         manifest = load_import_manifest(manifest_path)
         if graph_version != manifest["graph_version"]:
@@ -235,6 +253,11 @@ class CorridorImportService:
             expected_sha256=manifest["v3_mapping_sha256"],
         )
         with session_scope(factory) as session:
+            if jurisdiction_id is not None:
+                from ner_lens.identity.models import Jurisdiction
+
+                if session.get(Jurisdiction, jurisdiction_id) is None:
+                    raise ValueError("corridor jurisdiction does not exist")
             existing = session.scalar(
                 select(CorridorVersion).where(
                     CorridorVersion.corridor_key == self.corridor_key,
@@ -259,6 +282,8 @@ class CorridorImportService:
             version = CorridorVersion(
                 id=version_id,
                 corridor_key=self.corridor_key,
+                name=name,
+                jurisdiction_id=jurisdiction_id,
                 graph_version=graph_version,
                 graph_sha256=graph_sha256,
                 source_url=source_url,

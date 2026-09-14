@@ -91,6 +91,14 @@ class AuthorizationService:
     ) -> AuthorizationDecision:
         now = now or datetime.now(timezone.utc)
         request_id = request_id or str(uuid.uuid4())
+        if (
+            actor.token_issued_at.utcoffset() is None
+            or actor.expires_at.utcoffset() is None
+            or actor.token_issued_at > now
+        ):
+            return self._decide(
+                actor, action, "session_invalid", "session timestamps are invalid", request_id
+            )
         if self._session_factory:
             persisted = self._check_persisted_context(actor, action, scope, now, request_id)
             if persisted is not None:
@@ -183,6 +191,11 @@ class AuthorizationService:
                 return self._decide(
                     actor, action, "actor_inactive", "actor is not active", request_id
                 )
+            if stored_actor.actor_type != actor.actor_type:
+                return self._decide(
+                    actor, action, "actor_type_denied", "actor type does not match identity",
+                    request_id,
+                )
             stored_session = session.get(SessionRecord, actor.session_id)
             if (
                 stored_session is None
@@ -191,6 +204,18 @@ class AuthorizationService:
             ):
                 return self._decide(
                     actor, action, "session_expired", "session is expired or revoked", request_id
+                )
+            # SQLite drops offsets on round-trip; stored timestamps are UTC.
+            issued_at = stored_session.token_issued_at
+            expires_at = stored_session.expires_at
+            if issued_at.tzinfo is None:
+                issued_at = issued_at.replace(tzinfo=timezone.utc)
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if actor.token_issued_at != issued_at or actor.expires_at != expires_at:
+                return self._decide(
+                    actor, action, "session_invalid", "session claims do not match identity",
+                    request_id,
                 )
             assignments = session.scalars(
                 select(RoleAssignment).where(RoleAssignment.actor_id == actor.actor_id)
@@ -201,7 +226,10 @@ class AuthorizationService:
             if assignment.jurisdiction_id is None
             or assignment.jurisdiction_id == scope.jurisdiction_id
         }
-        if not any(role in allowed_roles for role in actor.roles):
+        if not any(
+            role in allowed_roles and action in ROLE_ACTIONS.get(role, frozenset())
+            for role in actor.roles
+        ):
             return self._decide(
                 actor,
                 action,

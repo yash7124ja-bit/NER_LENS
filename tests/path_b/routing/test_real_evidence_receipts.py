@@ -16,9 +16,9 @@ v2 is superseded (see ../v2_superseded/SUPERSEDED.md); a subset of tests
 here also check that v2 remains clearly marked as superseded rather than
 silently deleted or left ambiguous.
 """
+
 import hashlib
 import json
-import re
 from pathlib import Path
 
 import pytest
@@ -63,9 +63,7 @@ def strip_json_comments(text):
     """GraphHopper's custom_model loader (Jackson with ALLOW_JAVA_COMMENTS)
     accepts leading `//` line comments; json.loads does not. Strip them the
     same way before parsing so these tests read the exact committed file."""
-    return "\n".join(
-        line for line in text.splitlines() if not line.strip().startswith("//")
-    )
+    return "\n".join(line for line in text.splitlines() if not line.strip().startswith("//"))
 
 
 def load_custom_model(path):
@@ -101,7 +99,9 @@ def test_info_response_identifies_expected_graph_data_date():
 def test_all_27_route_kind_profile_combinations_have_a_receipt():
     index = load_json(EVIDENCE_DIR / "response_index.json")
     seen = {q["query_id"] for q in index["queries"]}
-    expected = {f"{kind}_{profile}" for kind in ROUTE_KIND_PREFIXES for profile in EXPECTED_PROFILES}
+    expected = {
+        f"{kind}_{profile}" for kind in ROUTE_KIND_PREFIXES for profile in EXPECTED_PROFILES
+    }
     assert seen == expected, f"missing combinations: {expected - seen}"
     assert len(index["queries"]) == 27
 
@@ -151,22 +151,36 @@ def test_corridor_edge_mapping_and_result_summary_hashes_match_provenance():
     provenance = load_yaml(EVIDENCE_DIR / "real_extract_provenance.yaml")
     assert sha256_of(EVIDENCE_DIR / "result_summary.json") == provenance["result_summary_sha256"]
     assert sha256_of(EVIDENCE_DIR / "response_index.json") == provenance["response_index_sha256"]
-    assert sha256_of(EVIDENCE_DIR / "corridor_edge_mapping.json") == provenance["corridor_edge_mapping_sha256"]
+    assert (
+        sha256_of(EVIDENCE_DIR / "corridor_edge_mapping.json")
+        == provenance["corridor_edge_mapping_sha256"]
+    )
 
 
 def test_info_response_hash_matches_provenance_record():
     provenance = load_yaml(EVIDENCE_DIR / "real_extract_provenance.yaml")
-    assert sha256_of(EVIDENCE_DIR / "raw_info.json") == provenance["graphhopper"]["info_response_sha256"]
+    assert (
+        sha256_of(EVIDENCE_DIR / "raw_info.json")
+        == provenance["graphhopper"]["info_response_sha256"]
+    )
 
 
 def test_required_provenance_fields_exist():
     provenance = load_yaml(EVIDENCE_DIR / "real_extract_provenance.yaml")
     required_top_level = {
-        "osm_extract", "retention", "graphhopper", "vehicle_profiles",
-        "routes_queried", "result_summary_file", "result_summary_sha256",
-        "response_index_file", "response_index_sha256",
-        "corridor_edge_mapping_file", "corridor_edge_mapping_sha256",
-        "real_findings", "honest_limitations",
+        "osm_extract",
+        "retention",
+        "graphhopper",
+        "vehicle_profiles",
+        "routes_queried",
+        "result_summary_file",
+        "result_summary_sha256",
+        "response_index_file",
+        "response_index_sha256",
+        "corridor_edge_mapping_file",
+        "corridor_edge_mapping_sha256",
+        "real_findings",
+        "honest_limitations",
     }
     assert required_top_level.issubset(provenance.keys())
 
@@ -175,8 +189,16 @@ def test_required_provenance_fields_exist():
         assert field in osm, f"osm_extract missing {field}"
 
     retention = provenance["retention"]
-    for field in ("absolute_path", "byte_size", "md5", "sha256", "source_url",
-                  "licence", "reverification_before_mount_utc", "reverification_after_route_run_utc"):
+    for field in (
+        "absolute_path",
+        "byte_size",
+        "md5",
+        "sha256",
+        "source_url",
+        "licence",
+        "reverification_before_mount_utc",
+        "reverification_after_route_run_utc",
+    ):
         assert field in retention, f"retention missing {field}"
     assert retention["retained_outside_git"] is True
 
@@ -217,13 +239,11 @@ def test_v2_is_marked_superseded():
 
 # --- Task 2: rigid-truck hard-exclusion regression tests ---------------
 
+
 def test_rigid_truck_hard_excludes_delivery_and_destination_hgv():
     model = load_custom_model(EVIDENCE_DIR / "rigid_truck.json")
     rules = model["priority"]
-    matching = [
-        r for r in rules
-        if "DELIVERY" in r["if"] and "DESTINATION" in r["if"]
-    ]
+    matching = [r for r in rules if "DELIVERY" in r["if"] and "DESTINATION" in r["if"]]
     assert matching, "expected a priority rule gating on hgv==DELIVERY and hgv==DESTINATION"
     for r in matching:
         assert r["multiply_by"] == "0", (
@@ -295,6 +315,7 @@ def test_no_invented_delivery_destination_private_government_or_emergency_exempt
 
 # --- shared invariants (real vs synthetic, no operational-verified claim) --
 
+
 def test_real_and_synthetic_evidence_cannot_be_confused():
     synthetic = load_json(GRAPHHOPPER_DIR / "fixture_graph.v1.json")
     assert synthetic["label"] == "synthetic_replay_fixture"
@@ -313,7 +334,9 @@ def test_unknown_osm_restrictions_remain_unknown_in_real_receipts():
         assert set(entry["max_height_distinct_values"]) == {"None"}, query_id
         assert set(entry["max_weight_distinct_values"]) == {"None"}, query_id
         hgv_keys = set(entry["hgv_distance_m"].keys())
-        assert hgv_keys == {"missing"}, f"{query_id} unexpectedly has a non-missing hgv value: {hgv_keys}"
+        assert hgv_keys == {"missing"}, (
+            f"{query_id} unexpectedly has a non-missing hgv value: {hgv_keys}"
+        )
 
 
 def test_no_route_is_declared_operationally_verified():
@@ -321,8 +344,11 @@ def test_no_route_is_declared_operationally_verified():
     limitations_text = " ".join(provenance["honest_limitations"]).lower()
     assert "not operationally verified" in limitations_text or "no route" in limitations_text
 
-    for path in [EVIDENCE_DIR / "result_summary.json", EVIDENCE_DIR / "response_index.json",
-                 EVIDENCE_DIR / "corridor_edge_mapping.json"]:
+    for path in [
+        EVIDENCE_DIR / "result_summary.json",
+        EVIDENCE_DIR / "response_index.json",
+        EVIDENCE_DIR / "corridor_edge_mapping.json",
+    ]:
         serialized = path.read_text(encoding="utf-8").lower()
         assert "operationally_verified" not in serialized
         assert '"verified": true' not in serialized

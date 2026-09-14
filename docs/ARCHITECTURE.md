@@ -5,6 +5,27 @@
 **Reference sources:** `SIH-26002-AI-Based-Smart-Logistics-and-Accessibility-Intelligence-Platform-for-North-Eastern-Region-NER.md` and `SIH-26002-TECH-STACK-IMPLEMENTATION-AND-VALIDATION.md`  
 **Provisional geography:** Guwahati–Silchar is the working corridor hypothesis. It remains provisional until the route graph, alternatives, labels, source access and local review pass the corridor audit.
 
+### Runtime checkpoint — 14 September 2026
+
+The target architecture below remains the production direction. The integrated local
+checkpoint now consists of `ner_lens.app` (FastAPI), the existing SQLite replay store
+and the separate React/TypeScript client in `../NER_LENS_FRONTEND`, as explicitly
+requested by the project owner on this date. Python 3.12 is the validated runtime;
+`uv.lock` now reproduces the environment. This is not PostGIS/production validation.
+
+`ner_lens.replay` performs explicit local migrations/import and issues digest-backed,
+eight-hour synthetic viewer sessions; it is isolated from future OIDC integration.
+The API derives scope from persisted identity, audits authenticated authorization,
+then calls the corridor read service and serializes the shared Pydantic contracts.
+The client uses a same-origin development proxy, keeps bearer credentials in memory,
+and presents SVG synthetic band geometry with a keyboard-accessible table alternative.
+Both geography and restriction values retain their synthetic provenance. There is no
+route recommendation, status mutation, risk-model execution, live source, or GPS flow.
+
+The unmerged Path A M2/M4 work remains in its existing worktree for later validation;
+it is not silently loaded into this application. See the current gap analysis in
+`MILESTONES.md` before continuing that integration.
+
 ## 1. Decisions and non-goals
 
 NER LENS is a decision-support service for essential-goods missions. It records what was observed, who reviewed it and how fresh it is; it does not certify that a road is safe.
@@ -284,3 +305,19 @@ The first complete acceptance loop is:
 `ingest evidence → calculate risk → compare routes → create mission → ingest GPS → accept field report → review → publish status → recompute route → alert → inspect audit`
 
 The loop must run with deterministic replay fixtures, without manual database edits, and must demonstrate stale-feed, conflict, no-feasible-route and model-abstention behavior.
+
+## Local password identity checkpoint — 14 September 2026
+
+LocalAccount references the existing Actor; persisted RoleAssignment and
+SessionRecord remain the authorization source. Passwords use independently salted
+scrypt (N=131072, r=8, p=1); session records store a 144-bit token digest. Alembic
+0004_local_accounts adds accounts, login throttles, and corridor name/jurisdiction
+binding without seeding users or authority scopes. Explicit CLI provisioning reads
+secrets from process environment or a hidden prompt. The isolated replay initializer
+assigns the fixture's replay jurisdiction; request handlers have no fixture scope ID.
+
+SQLite BEGIN IMMEDIATE serializes failure accounting and password verification.
+This bounds concurrent attempts but is intentionally limited to local replay traffic;
+a production identity provider and deployment gate remain required. OIDC PKCE/MFA,
+password recovery and account administration are not claimed complete. The separate
+unmerged Path A M2 worktree must reconcile migration ancestry before integration.

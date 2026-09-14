@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 from ner_lens.config import Settings
@@ -202,6 +203,38 @@ def test_persisted_identity_and_assignment_state_is_checked():
     service = AuthorizationService(session_factory=factory)
     scope = ResourceScope(jurisdiction_id="j-1")
     assert service.authorize(actor, "review_evidence", scope, now=now).allowed
+    # A surviving low-privilege role cannot keep a removed role's permissions alive.
+    stale_roles = replace(actor, roles=("reviewer", "system_admin"))
+    assert not service.authorize(stale_roles, "manage_users", scope, now=now).allowed
+    assert not service.authorize(
+        replace(actor, actor_type="synthetic"), "review_evidence", scope, now=now
+    ).allowed
+    for changed in (
+        replace(actor, token_issued_at=now - timedelta(seconds=1)),
+        replace(actor, token_issued_at=now + timedelta(seconds=1)),
+        replace(actor, token_issued_at=now.replace(tzinfo=None)),
+        replace(actor, expires_at=now + timedelta(hours=2)),
+        replace(actor, expires_at=now.replace(tzinfo=None)),
+        replace(actor, session_id="other-session"),
+    ):
+        assert not service.authorize(changed, "review_evidence", scope, now=now).allowed
+    assert not service.authorize(
+        replace(actor, jurisdiction_ids=("j-1", "j-2")),
+        "review_evidence", ResourceScope(jurisdiction_id="j-2"), now=now,
+    ).allowed
+    assert not service.authorize(actor, "review_evidence", ResourceScope(), now=now).allowed
+    # Different roles in different jurisdictions must not combine their privileges.
+    with factory() as session:
+        session.add(Jurisdiction(id="j-2", code="other", name="Other"))
+        session.add(RoleAssignment(
+            id="other-assignment", actor_id=actor_id, role="system_admin", jurisdiction_id="j-2"
+        ))
+        session.commit()
+    assert not service.authorize(stale_roles, "manage_users", scope, now=now).allowed
+    assert service.authorize(
+        replace(stale_roles, jurisdiction_ids=("j-1", "j-2")),
+        "manage_users", ResourceScope(jurisdiction_id="j-2"), now=now,
+    ).allowed
     with factory() as session:
         session.get(SessionRecord, session_id).revoked_at = now
         session.commit()

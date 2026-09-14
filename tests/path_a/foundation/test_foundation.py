@@ -13,6 +13,22 @@ from ner_lens.health import build_health_router, check_database_ready
 from ner_lens.identity.models import AuditEvent, IdempotencyRecord
 
 
+def test_environment_defaults_are_usable_and_match_migration_database(monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("NER_LENS_ENV", raising=False)
+    monkeypatch.delenv("API_REQUEST_TIMEOUT_SECONDS", raising=False)
+    settings = Settings.from_env()
+    assert settings.database_url == "sqlite:///ner_lens_replay.sqlite"
+    assert settings.environment == "replay"
+    assert settings.api_request_timeout_seconds == 10
+    assert ":memory:" in Settings().database_url
+    monkeypatch.setenv("DATABASE_URL", "sqlite+pysqlite:///:memory:")
+    factory = build_session_factory(Settings.from_env())
+    Base.metadata.create_all(factory.kw["bind"])
+    assert factory.kw["bind"].url.database == ":memory:"
+    factory.kw["bind"].dispose()
+
+
 def test_sqlite_replay_repository_persists_foundation_entities_and_geojson():
     factory = build_session_factory(Settings(database_url="sqlite+pysqlite:///:memory:"))
     Base.metadata.create_all(factory.kw["bind"])

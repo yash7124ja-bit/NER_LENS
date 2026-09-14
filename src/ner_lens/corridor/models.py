@@ -75,6 +75,8 @@ class CorridorVersion(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     corridor_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(255))
+    jurisdiction_id: Mapped[str | None] = mapped_column(ForeignKey("jurisdiction.id"))
     graph_version: Mapped[str] = mapped_column(String(128), nullable=False)
     graph_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     source_url: Mapped[str] = mapped_column(

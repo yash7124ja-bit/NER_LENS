@@ -28,6 +28,41 @@ For the authorized hackathon replay build, every demo-visible corridor-state, st
 
 These fields are immutable response facts, not optional presentation copy. The replay API must always return `mode=insufficient_evidence` and `recommended_route_id=null`; other policy modes are test-only until an operational owner approves policy thresholds.
 
+### Implemented shell checkpoint — 14 September 2026
+
+Only health, corridor discovery and corridor state are exposed by the current runtime.
+The rest of this document is the target contract, not a list of running endpoints.
+`docs/openapi/v1.json` is generated from that implemented surface.
+
+- The local replay shell uses opaque bearer sessions from the CLI, not an OIDC claim.
+  Tokens are random, digest-backed, expire after eight hours and are checked against
+  persisted synthetic identity, role and jurisdiction on every read. Both granted
+  and denied authenticated authorization decisions are audited with the HTTP request ID.
+- Existing imported corridor/segment IDs are deterministic UUIDv5. They are preserved
+  as a replay compatibility exception to the target UUIDv4 rule. Because the existing
+  schema has no separate corridor entity, replay `corridor_id` equals `corridor_version_id`.
+  Replay actor/jurisdiction/session IDs are opaque synthetic identifiers.
+- Additive `GET /v1/corridors` returns `{corridors: [{corridor_id, corridor_version_id,
+  name, graph_version, data_mode}], data_mode, provenance, limitations}` for the scoped,
+  active replay import. An uninitialized import returns `404 not_found`.
+- The geometry AND vehicle constraints are hand-authored synthetic fixtures, not
+  measured OSM road geometry or approved limits. The fixture hash is not a PBF hash.
+  `provenance.retrieved_at` records local import time; `observed_at` is null.
+- State adds `segment_type`, `direction`, and `vehicle_constraints` from that import.
+  No operational evidence is loaded, so status is `unknown`, risk is
+  `insufficient_evidence`, probability/valid-until/evidence-age are null and source
+  health is `failed` (no configured operational feed). Requested evidence is an empty
+  list; otherwise the evidence field is omitted. No numeric values are fabricated.
+- `at` accepts offset-qualified timestamps only between this version's local import
+  time and now. Earlier historical versions and future assessments are unavailable
+  and return `400 invalid_request`. Vehicle profile is validated but cannot produce
+  a clearance or change unknown status without evidence.
+- Pagination uses the last returned segment's opaque ID, default 50/max 200. A cursor
+  outside the active import is invalid. Unknown query fields are rejected.
+- Errors, including validation (`400` rather than FastAPI's default `422`), use the
+  canonical envelope. Every response has `X-Request-ID` and `Cache-Control: no-store`.
+  Schema-incompatible stores return `503 degraded` for readiness and protected reads.
+
 ## 1. Common wire rules
 
 ### JSON conventions
@@ -549,3 +584,28 @@ Every independent implementation must provide at least one executable fixture fo
 - No stale/failed feed is rendered as healthy; no missing observation is treated as a negative/open label.
 - Baseline risk remains the operational fallback until blocked evaluation and calibration pass the promotion gate.
 - The backend can replay the complete mission/report/review/status/route/alert/audit flow without manual database edits.
+
+## Local account contract — 14 September 2026
+
+The implemented replay UI uses POST `/v1/auth/login` with `{email,password}`,
+GET `/v1/auth/session`, and POST `/v1/auth/logout` (204). Login/session return
+`{user:{actor_id,email,display_name,roles,jurisdiction_ids},expires_at}`. A legacy
+synthetic bearer user's email may be null. No password hash or raw token is returned
+in JSON. The cookie is HttpOnly, SameSite=Strict and expires with the database session.
+Logout revokes the presented bearer or cookie session and clears the cookie.
+
+Invalid credentials return generic 401; persisted failure throttles return 429 with
+Retry-After. Success resets account failures, without clearing client failures from
+other accounts. Cross-origin login/logout are rejected. No caller-supplied actor,
+role or jurisdiction can authorize a request. Corridor names and jurisdiction
+bindings come from the database; unbound corridors are inaccessible.
+
+Authentication lifecycle endpoints do not use the domain Idempotency-Key store:
+logout is naturally idempotent; a repeated login issues a new random session and
+revokes the prior cookie session. Passwords/tokens must never enter that response
+cache. This exception does not change domain mutation idempotency requirements.
+
+Executable stories: tests/contracts/test_login.py and test_api.py cover successful
+login/restore/logout, unknown/wrong credentials, expiry, disabled users, live role
+revocation, database scope changes and CSRF; Path A identity tests cover scrypt,
+concurrent throttle accounting, successful retries and migration upgrade/downgrade.

@@ -10,6 +10,88 @@
 
 **Source documents:** `../../SIH-26002-TECH-STACK-IMPLEMENTATION-AND-VALIDATION.md` and `../../SIH-26002-AI-Based-Smart-Logistics-and-Accessibility-Intelligence-Platform-for-North-Eastern-Region-NER.md`.
 
+## Current implementation checkpoint — 14 September 2026
+
+**Delivered:** S-M1-01 replay API shell and the first client-to-backend corridor flow.
+This is an integrated read-only checkpoint, not completion of all M1/M2 acceptance
+criteria or permission for operational use. The owner's current request extends the
+local replay continuation and names the separate frontend repository.
+
+### Audit and preservation
+
+- Main backend began at `f115761` on `sol/hackathon-replay-mvp`, clean, with 107 tests
+  passing. After fetching origin it was 14 commits ahead of `origin/main`, with no
+  remote-only commits. No branch reset, commit overwrite, push or deployment occurred.
+- `NER_LENS_FRONTEND` was an empty/unborn `main`, with no tracked implementation and
+  no remote main after fetch. The new client uses React/TypeScript and reproduces the
+  relevant neutral panels/toolbar/table hierarchy in `../logistics-network-control.html`.
+  `HERMES_RESEARCH_PRESENTATION.html` is older research collateral, not the UI baseline.
+- The existing `.worktrees/path-a` branch `path-a/hackathon-m1` at `76889ac` contains
+  unmerged evidence, status, audit and optional provider code. It was inspected and
+  preserved. Its test run was 118 passed / 3 failed due to fixed-date sessions; its
+  status-expiry ordering and append-only guarantees also need correction before merge.
+- Both root specifications and the backend contract/architecture/milestone/audit
+  documentation were reconciled. PostgreSQL/PostGIS, OIDC, GraphHopper and later
+  product workflows remain target architecture; code presence is not release evidence.
+
+### Specified → implemented → tested → integrated
+
+| Capability | Actual state at this checkpoint |
+|---|---|
+| Foundation/migrations | Existing SQLite replay revisions 0001–0003 boot and cycle; PostGIS remains unvalidated |
+| Identity | Persisted scoped authorization corrected; CLI-issued digest-backed, eight-hour synthetic viewer session integrated into HTTP and client |
+| Corridor import | Existing checksummed synthetic six-band import reused; IDs/provenance retained |
+| API shell | Canonical v1 read schemas/errors, UUID request IDs, migration readiness, audited protected reads, generated OpenAPI integrated |
+| Frontend | New reference-based responsive explorer: session access, native filters, SVG overview, accessible table/details and provenance use actual API responses |
+| Evidence/status | Substantial unmerged Path A implementation, not integrated or accepted; defects recorded below |
+| Routing | Existing audited GraphHopper receipts and replay restriction tests; no runtime comparison or recommendation API |
+| Missions/GPS/alerts | Specified, no integrated service/client flow |
+| Offline/media | Specified, no integrated queue/sync/quarantine workflow |
+| Risk/ML/RAG | No measured model; explicit abstention in UI/API. LLM/RAG is excluded by the project decisions |
+| Live sources/deployment | Provider work is unmerged; partner/authority gates remain blocked; no production claim |
+
+### Corrections and contracts
+
+- Fixed slotted dataclass environment defaults that prevented startup without environment
+  overrides; the actual shell and Alembic now use the same replay-file default.
+- Fixed stale claimed roles being combined with an unrelated persisted role to gain
+  privileges; actor type and exact persisted session times are now bound and checked.
+- Reused the importer instead of reconstructing corridor data. Geometry/restrictions
+  remain visibly hand-authored synthetic fixtures; source absence remains failed/unknown.
+- Added only the runtime server and test HTTP/YAML dependencies needed to run the
+  existing/new suites. `uv.lock` and the frontend lockfile make clean installs reproducible.
+  Existing replay test lint issues were formatting/unused imports only; assertions were retained.
+- Added discovery endpoint and documented replay ID/auth/time exceptions in CONTRACTS.
+  No endpoints for unfinished features appear in generated OpenAPI.
+
+### Validation evidence
+
+Run the commands in the backend README and frontend README. Final results: **131 pytest
+tests passed**, full Ruff and Python compilation passed, locked installation passed,
+frontend strict TypeScript/build and both Node tests passed. Python `pip-audit` (excluding
+the editable local package) and `npm audit` reported no known dependency vulnerabilities.
+The test run retains dependency/Alembic/SQLite deprecation warnings; these are not failures.
+Existing SQLite migration
+up/down tests remain in the full suite; no PostGIS migration success is asserted.
+
+Browser checks use the real API through the Vite proxy: token login, six-row data load,
+selection/details, filtering/empty states, logout/session failure and network recovery.
+Desktop (1440 px) and mobile (390 px) screenshots are local artifacts in the frontend's
+ignored `output/playwright/` directory. The mobile document has no horizontal overflow;
+the wide table has its own labelled, keyboard-focusable scroll region. These checks
+do not constitute WCAG or screen-reader certification.
+
+### Remaining gaps, ordered by priority
+
+| Priority | Task | Reason / dependency |
+|---|---|---|
+| P0 before live use | Named authority/reviewer, approved source terms, source freshness and routing policy, consent/ground truth | M0/P0 remains blocked; partner/operational-owner evidence required |
+| P1 next replay integration | Correct and integrate Path A evidence/status work | Fix expired-newer-decision fallback to older status, status immutability/scope validation, model registry and date-dependent tests; then review targeted commits 9774d5b → d567bfd → 76889ac |
+| P1 | Route adapter + persisted comparison + status→route→audit E2E | B-M1-02/A-M1-04/B-M2/S-M2; use nh27_via_bands receipts, never fabricate ETA uncertainty or recommend under unapproved policy |
+| P1 | Mission/GPS, offline reports/media, deterministic alerts | M1 persistence and M2 checkpoint precede M3; real data requires consent, media scan boundary and reviewed language templates |
+| P1 before release | PostGIS/production identity, backups, security and full client accessibility/offline validation | Replay SQLite and browser checks do not establish deployment readiness; M6/Terra P1 required |
+| P2 | Permitted ingestion and baseline evaluation | Reuse optional provider work only after review; labels/terms/owner approval required before operational claims or conditional ML |
+
 ## Non-negotiable project rules
 
 - The prototype is one corridor, one essential-medicine mission, one defensible alternative, and three vehicle profiles: `light_goods`, `rigid_truck`, `emergency`.
@@ -572,3 +654,36 @@ Parallel work is allowed only where dependencies and file ownership permit it. A
 
 
 
+
+## Login user stories — 14 September 2026
+
+This addition implements local sign-in for the existing read-only corridor workflow.
+The two root specifications require server-side identity, district scope, audit,
+secret isolation, and truthful evidence boundaries. Those requirements map to:
+
+| Story | Implemented verification |
+|---|---|
+| Provision an assigned operator without embedding credentials | CLI env/hidden prompt, database actor/roles, salted scrypt, no migration seeds |
+| Sign in and resume after reload | JSON login, HttpOnly cookie, session profile; real Chromium browser checked |
+| Reject bad credentials and repeated guessing | Generic errors, persisted account/client failure counters, concurrency test |
+| Remove access promptly | Disabled/expired/revoked session and live role/scope change API tests |
+| Sign out securely | Server revocation for cookie and legacy bearer; repeated logout succeeds |
+| Keep district data scoped | Corridor database name/jurisdiction; cross-scope request denied |
+| Use an accessible matching login | Labels, focus, password-manager support, desktop/mobile checks, team footer |
+| Preserve evidence meaning | Existing synthetic geometry and unknown status remain explicitly labelled |
+
+Chromium checked the requested account signing in through Vite, loading six segments,
+restoring on reload, and returning to the empty login form on logout. JavaScript sees
+no cookie token; localStorage/sessionStorage are empty. Desktop 1440x1000 and mobile
+390x844 screenshots are in the frontend's ignored output/playwright directory.
+The Vite proxy explicitly preserves Host for exact origin validation.
+
+This is local database authentication, not completion of OIDC/MFA or the remaining
+routing, mission, offline reporting, review, alert and source-ingestion stories.
+
+Validation: full backend suite passed 141 tests before the final review fixes;
+after those fixes, all 34 affected API/account tests passed. Ruff and compileall
+passed. Frontend transport/projection tests (2), strict TypeScript and Vite build
+passed. Chromium also verified generic invalid-credential feedback and password
+clearing/focus. Source/migration/test/docs and frontend build scans found no supplied
+credential literals. Existing framework deprecation warnings remain.

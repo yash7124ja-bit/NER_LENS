@@ -49,6 +49,23 @@ class SessionRecord(Base):
         return self.active and self.revoked_at is None and now < expires_at
 
 
+class LocalAccount(Base):
+    __tablename__ = "local_account"
+
+    actor_id: Mapped[str] = mapped_column(ForeignKey("actor.id"), primary_key=True)
+    email: Mapped[str] = mapped_column(String(254), nullable=False, unique=True)
+    display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
+
+
+class LoginThrottle(Base):
+    __tablename__ = "login_throttle"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    window_started: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class RoleAssignment(Base):
     __tablename__ = "role_assignment"
     __table_args__ = (

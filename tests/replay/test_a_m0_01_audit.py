@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = ROOT / "data" / "manifests" / "a-m0-01-source-terms.json"
 FIXTURE_PATH = ROOT / "tests" / "replay" / "a-m0-01-fixtures.json"
@@ -21,7 +20,13 @@ SOURCE_FIELDS = {
     "health",
     "required_before_runtime",
 }
-ALLOWED_FIXTURE_MODES = {"live_approved", "replay", "synthetic", "partner_dependent", "inaccessible"}
+ALLOWED_FIXTURE_MODES = {
+    "live_approved",
+    "replay",
+    "synthetic",
+    "partner_dependent",
+    "inaccessible",
+}
 UNTRUSTED_TERMS = {"unknown", "not_obtained"}
 
 
@@ -89,7 +94,10 @@ def test_unlicensed_or_private_cases_are_rejected():
     assert fixtures["not_live_validation"] is True
 
     for case in fixtures["cases"]:
-        untrusted = case["mode"] in {"partner_dependent", "inaccessible"} or case["terms"] in UNTRUSTED_TERMS
+        untrusted = (
+            case["mode"] in {"partner_dependent", "inaccessible"}
+            or case["terms"] in UNTRUSTED_TERMS
+        )
         if untrusted:
             assert case["expected"] not in {"accept", "accept_metadata_only"}, case
 
@@ -151,9 +159,10 @@ def test_structural_completeness_does_not_grant_p0_readiness():
     assert "hard-excludes" in audit
     assert "Receipt hashes" in audit
     assert "exact project-specific `light_goods`" in audit
-    assert "exact `light_goods`, `rigid_truck`, and `emergency` profiles" not in audit.split(
-        "## 11. P0 decision record", maxsplit=1
-    )[1]
+    assert (
+        "exact `light_goods`, `rigid_truck`, and `emergency` profiles"
+        not in audit.split("## 11. P0 decision record", maxsplit=1)[1]
+    )
     assert "aggregated/self-attested receipts" not in audit
     assert "NH-6 remains waypoint-biased" in audit
     assert "hill-band preference divergence" in audit

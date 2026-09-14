@@ -37,3 +37,13 @@ This decision does not change the M0 evidence findings and does not authorize cl
 ## Deferred gates
 
 Live source ingestion, live operational recommendations, model promotion, production release, and field deployment remain blocked by the unresolved items in `m0-evidence-checkpoint.md`.
+
+## Continuation — 14 September 2026
+
+The project owner's explicit continuation request on this date authorizes renewed
+local implementation and integration across `NER_LENS` and `NER_LENS_FRONTEND`.
+This supersedes the expired time box for that requested work, not the live/production
+gates. The selected checkpoint completes S-M1-01's bootable schema/API shell and a
+read-only client corridor flow, plus corrections to existing configuration and identity.
+The original M0 findings and all mandatory replay safety behavior remain in force.
+The initial frontend repository was empty; no prior frontend implementation was replaced.

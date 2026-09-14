@@ -11,6 +11,12 @@ class Settings:
     database_url: str = "sqlite+pysqlite:///:memory:"
     environment: str = "replay"
     api_request_timeout_seconds: int = 10
+    session_ttl_seconds: int = 28800
+    login_attempt_limit: int = 5
+    login_window_seconds: int = 900
+    session_cookie_name: str = "ner_lens_session"
+    session_cookie_secure: bool = False
+    auth_allowed_origins: tuple[str, ...] = ()
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -21,8 +27,25 @@ class Settings:
             raise ValueError("API_REQUEST_TIMEOUT_SECONDS must be an integer") from exc
         if timeout_seconds <= 0:
             raise ValueError("API_REQUEST_TIMEOUT_SECONDS must be positive")
+
+        def positive(name: str, default: int) -> int:
+            value = int(os.getenv(name, str(default)))
+            if value <= 0:
+                raise ValueError(f"{name} must be positive")
+            return value
+
         return cls(
-            database_url=os.getenv("DATABASE_URL", cls.database_url),
-            environment=os.getenv("NER_LENS_ENV", cls.environment),
+            database_url=os.getenv("DATABASE_URL", "sqlite:///ner_lens_replay.sqlite"),
+            environment=os.getenv("NER_LENS_ENV", cls().environment),
             api_request_timeout_seconds=timeout_seconds,
+            session_ttl_seconds=positive("SESSION_TTL_SECONDS", cls().session_ttl_seconds),
+            login_attempt_limit=positive("LOGIN_ATTEMPT_LIMIT", cls().login_attempt_limit),
+            login_window_seconds=positive("LOGIN_WINDOW_SECONDS", cls().login_window_seconds),
+            session_cookie_name=os.getenv("SESSION_COOKIE_NAME", cls().session_cookie_name),
+            session_cookie_secure=os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true",
+            auth_allowed_origins=tuple(
+                value.strip()
+                for value in os.getenv("AUTH_ALLOWED_ORIGINS", "").split(",")
+                if value.strip()
+            ),
         )
