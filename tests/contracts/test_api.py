@@ -188,6 +188,8 @@ def test_openapi_contains_only_implemented_routes_and_matches_snapshot(api):
     client, _, _ = api
     document = client.get("/openapi.json").json()
     assert set(document["paths"]) == {
+        "/v1/user-stories/search",
+        "/v1/admin/user-stories/reindex",
         "/health/sources",
         "/v1/admin/users",
         "/v1/corridors/{corridor_id}/capabilities",

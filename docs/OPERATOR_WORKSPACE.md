@@ -7,7 +7,7 @@
 - Super Admin maps to the persisted `system_admin` role. It can create and assign scoped user roles. Status authority is a separate database grant requiring `district_officer`. Own admin removal is rejected.
 - To promote an existing account once, set `NER_LENS_SUPERADMIN_EMAIL` during deployment and remove it after the grant is confirmed. No passwords are stored in the UI.
 - Twelve user stories are ingested from `data/user_stories.json` into `user_story` by Alembic-backed deployment initialization. Existing records are preserved. Explicit admin API import can update them.
-- Weaviate is not configured; application records remain in PostgreSQL. No vector search claim is made.
+- Weaviate indexes the 12 SIH stories using BM25 keyword search. Application records remain in PostgreSQL. No semantic/vector-search claim is made.
 
 Verification: 199 backend tests, 9 frontend tests, production build. Browser trials on a disposable database: report capture/sync/review, accepted-evidence closure, mission create/start/complete, administrator account creation. Map worker and all six rendered corridor features observed with loaded basemap; mobile viewport checked for overflow.
 

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Literal
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import JSON, DateTime, String, delete, select
 from sqlalchemy.orm import Mapped, mapped_column
@@ -78,7 +78,7 @@ def ingest_stories(factory, records, *, overwrite=False):
     return len(validated)
 
 
-def build_router(factory, current_actor):
+def build_router(factory, current_actor, settings):
     router = APIRouter(tags=["administration"])
 
     def scope(session, actor, corridor_id, action="manage_users"):
@@ -233,8 +233,48 @@ def build_router(factory, current_actor):
                     row.payload for row in session.scalars(select(Story).order_by(Story.id))
                 ],
                 "storage": "application_database",
-                "vector_index": "not_configured",
+                "vector_index": "configured"
+                if settings.providers.get("WEAVIATE_API")
+                else "not_configured",
             }
+
+    @router.get("/v1/user-stories/search")
+    def search(
+        corridor_id: str, q: str = Query(min_length=1, max_length=300), actor=Depends(current_actor)
+    ):
+        import httpx
+
+        from ner_lens.story_search import search_stories
+
+        with factory() as session:
+            scope(session, actor, corridor_id, "read_corridor_state")
+        try:
+            ids = search_stories(settings, q)
+        except (ValueError, httpx.HTTPError):
+            raise HTTPException(503, "story_search_unavailable") from None
+        with factory() as session:
+            records = {
+                row.id: row.payload
+                for row in session.scalars(select(Story).where(Story.id.in_(ids)))
+            }
+            return {
+                "stories": [records[sid] for sid in ids if sid in records],
+                "search_mode": "weaviate_bm25",
+            }
+
+    @router.post("/v1/admin/user-stories/reindex")
+    def reindex(corridor_id: str, actor=Depends(current_actor)):
+        import httpx
+
+        from ner_lens.story_search import index_stories
+
+        with factory() as session:
+            scope(session, actor, corridor_id)
+            records = [row.payload for row in session.scalars(select(Story))]
+        try:
+            return index_stories(settings, records)
+        except (ValueError, httpx.HTTPError):
+            raise HTTPException(503, "story_index_unavailable") from None
 
     @router.post("/v1/admin/user-stories")
     def import_stories(corridor_id: str, body: list[StoryInput], actor=Depends(current_actor)):

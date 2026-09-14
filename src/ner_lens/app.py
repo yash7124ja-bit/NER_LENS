@@ -413,7 +413,7 @@ def create_app(
     from ner_lens.administration import build_router as administration_router
     from ner_lens.media import build_router as media_router
 
-    app.include_router(administration_router(factory, current_actor))
+    app.include_router(administration_router(factory, current_actor, settings))
     app.include_router(media_router(factory, current_actor))
     app.include_router(operations_router(factory, current_actor))
     app.include_router(routing_router(factory, current_actor, settings))

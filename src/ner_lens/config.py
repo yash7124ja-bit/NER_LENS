@@ -103,6 +103,9 @@ class Settings:
                     "IMD_API_STATUS",
                     "IMD_API_URL",
                     "SOURCE_ROUTE_POINTS",
+                    "WEAVIATE_REST_ENDPOINT",
+                    "WEAVIATE_API",
+                    "WEAVIATE_STORY_COLLECTION",
                 )
             },
             source_refresh_seconds=positive("SOURCE_REFRESH_SECONDS", 3600),
