@@ -82,6 +82,21 @@ No review/status/route/mission/source-health API is advertised before integratio
 
 ## Validate
 
+### External ten-minute health check
+
+Set `BACKEND_HEALTH_URL` to the deployed backend's HTTPS `/health/ready` URL, then
+run `python scripts/ping_backend.py` on an external, always-on machine. It checks
+immediately and every 600 seconds, with a 30-second timeout. Ctrl+C stops it.
+`--once` performs one check with exit code 0 for ready or 1 for unavailable, for an
+external scheduler. No service URL or credentials are embedded in the script.
+
+This script is not yet scheduled or pointed at a deployed service. It cannot keep
+Render awake if its own host sleeps. Render's free tier has a 15-minute idle timeout,
+750 shared instance hours/month, ephemeral local files, and a 30-day free Postgres
+lifetime. Pings do not remove those limits or guarantee uptime. See
+[Render free services](https://render.com/docs/free). The current SQLite-only backend
+still needs deployment/database integration before it can safely run there.
+
 ```powershell
 uv run python -m pytest -q
 uv run python -m ruff check src migrations tests
