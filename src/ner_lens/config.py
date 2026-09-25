@@ -48,6 +48,7 @@ class Settings:
     proxy_secret: str = ""
     providers: dict[str, str] = field(default_factory=dict, repr=False)
     source_refresh_seconds: int = 3600
+    field_report_max_age_seconds: int | None = None
     map_style_url: str = ""
     max_request_bytes: int = 3 * 1024 * 1024
     media_s3_endpoint: str = ""
@@ -116,6 +117,11 @@ class Settings:
                 )
             },
             source_refresh_seconds=positive("SOURCE_REFRESH_SECONDS", 3600),
+            field_report_max_age_seconds=(
+                positive("FIELD_REPORT_MAX_AGE_SECONDS", 0)
+                if os.getenv("FIELD_REPORT_MAX_AGE_SECONDS")
+                else None
+            ),
             map_style_url=os.getenv("MAP_STYLE_URL", ""),
             max_request_bytes=positive("MAX_REQUEST_BYTES", 3 * 1024 * 1024),
             media_s3_endpoint=os.getenv("MEDIA_S3_ENDPOINT", ""),

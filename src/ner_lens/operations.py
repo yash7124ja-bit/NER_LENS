@@ -349,7 +349,7 @@ def effective_status(session, segment_id, at=None, *, direction="both", vehicle_
     }
 
 
-def build_router(factory, current_actor):
+def build_router(factory, current_actor, settings=None):
     router = APIRouter(tags=["operations"])
 
     def audit_authorization(event):
@@ -748,6 +748,14 @@ def build_router(factory, current_actor):
                         or revision.payload["action"] != "accept"
                     ):
                         fail(422, "accepted_segment_evidence_required")
+                    if body.status != "unknown":
+                        max_age = getattr(settings, "field_report_max_age_seconds", None)
+                        if max_age is None:
+                            fail(503, "evidence_freshness_policy_unset")
+                        observed_at = datetime.fromisoformat(evidence.payload["observed_at"])
+                        age = max(now_utc(), body.effective_at) - observed_at
+                        if age > timedelta(seconds=max_age):
+                            fail(422, "evidence_observation_stale")
                 previous = next((row for row in session.scalars(
                     select(StatusDecision).where(StatusDecision.segment_id == body.segment_id)
                     .order_by(StatusDecision.created_at.desc(), StatusDecision.id.desc())

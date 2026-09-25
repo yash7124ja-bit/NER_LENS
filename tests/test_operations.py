@@ -113,7 +113,10 @@ def api(tmp_path, monkeypatch):
     async def request_id(request, call_next):
         request.state.request_id = str(uuid4())
         return await call_next(request)
-    app.include_router(build_router(factory, lambda: selected[0]))
+    app.include_router(build_router(
+        factory, lambda: selected[0],
+        Settings(database_url=url, field_report_max_age_seconds=3600),
+    ))
     app.include_router(routing_router(factory, lambda: selected[0], Settings(database_url=url)))
     with TestClient(app) as client:
         yield client, factory, selected, actors
@@ -651,6 +654,43 @@ def test_report_review_status_expiry_and_audit(api):
     with factory.begin() as session:
         session.get(StatusAuthority, ("district_officer-north", "north")).active = False
     assert post(client, "/v1/status-decisions", decision).status_code == 403
+
+
+def test_status_requires_fresh_observation_and_approved_age_policy(api):
+    client, factory, selected, actors = api
+    now = datetime.now(timezone.utc)
+    old = post(client, "/v1/field-reports", {
+        **report_body(), "observed_at": (now - timedelta(hours=2)).isoformat(),
+    }).json()["field_report_id"]
+    selected[0] = actors["reviewer-north"]
+    assert post(client, f"/v1/reviews/{old}", {
+        "action": "accept", "note": "Confirmed historical obstruction",
+    }).status_code == 201
+    selected[0] = actors["district_officer-north"]
+    decision = {
+        "segment_id": "north", "status": "closed", "vehicle_scope": ["all"],
+        "direction": "both", "reason_code": "landslide", "evidence_ids": [old],
+        "effective_at": now.isoformat(),
+        "valid_until": (now + timedelta(hours=1)).isoformat(),
+        "note": "Reviewed obstruction",
+    }
+    stale = post(client, "/v1/status-decisions", decision)
+    assert stale.status_code == 422
+    assert stale.json()["detail"] == "evidence_observation_stale"
+
+    selected[0] = actors["field_reporter-north"]
+    fresh = post(client, "/v1/field-reports", report_body()).json()["field_report_id"]
+    selected[0] = actors["reviewer-north"]
+    assert post(client, f"/v1/reviews/{fresh}", {
+        "action": "accept", "note": "Confirmed current obstruction",
+    }).status_code == 201
+    selected[0] = actors["district_officer-north"]
+    decision["evidence_ids"] = [fresh]
+    app_without_policy = FastAPI()
+    app_without_policy.include_router(build_router(factory, lambda: selected[0]))
+    with TestClient(app_without_policy) as unconfigured:
+        assert post(unconfigured, "/v1/status-decisions", decision).status_code == 503
+    assert post(client, "/v1/status-decisions", decision).status_code == 201
 
 
 def test_report_clarification_history_is_scoped_and_does_not_publish_status(api):

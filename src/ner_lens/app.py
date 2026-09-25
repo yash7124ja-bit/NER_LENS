@@ -455,7 +455,7 @@ def create_app(
             require_services=settings.database_url.startswith("postgresql"),
         )
     )
-    app.include_router(operations_router(factory, current_actor))
+    app.include_router(operations_router(factory, current_actor, settings))
     app.include_router(routing_router(factory, current_actor, settings))
     return app
 
