@@ -8,6 +8,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 from shapely.geometry import LineString
 from shapely.ops import transform
 from sqlalchemy import JSON, DateTime, ForeignKey, String, UniqueConstraint, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ner_lens.common.idempotency import canonical_request_hash, validate_idempotency_key
@@ -66,6 +67,24 @@ class MissionImpactRecord(Base):
     payload: Mapped[dict] = mapped_column(JSON)
 
 
+class RouteChangeApproval(Base):
+    __tablename__ = "route_change_approval"
+    __table_args__ = (
+        UniqueConstraint("impact_id", name="uq_route_change_impact"),
+        UniqueConstraint("actor_id", "idempotency_key", name="uq_route_change_actor_key"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    impact_id: Mapped[str] = mapped_column(ForeignKey("mission_impact.id"))
+    mission_id: Mapped[str] = mapped_column(ForeignKey("mission.id"), index=True)
+    comparison_id: Mapped[str] = mapped_column(ForeignKey("route_comparison.id"))
+    route_id: Mapped[str] = mapped_column(String(36))
+    actor_id: Mapped[str] = mapped_column(ForeignKey("actor.id"))
+    idempotency_key: Mapped[str] = mapped_column(String(255))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict] = mapped_column(JSON)
+
+
 class RouteRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     corridor_id: str
@@ -74,6 +93,7 @@ class RouteRequest(BaseModel):
     destination: Point
     vehicle_profile: str = Field(pattern="^(light_goods|rigid_truck|emergency)$")
     mission_id: str | None = None
+    impact_id: str | None = None
     departure_at: AwareDatetime
     deadline_at: AwareDatetime
     alternative_limit: int = Field(default=3, ge=1, le=3)
@@ -89,6 +109,48 @@ class RouteSelectionInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     comparison_id: str
     route_id: str
+
+
+class RouteChangeInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    impact_id: str
+    comparison_id: str
+    route_id: str
+    reason: str = Field(min_length=10, max_length=1000)
+
+
+def current_impact(session, mission: Mission, impact_id: str, now: datetime):
+    impact = session.get(MissionImpactRecord, impact_id)
+    if (
+        impact is None
+        or impact.mission_id != mission.id
+        or impact.state != "active"
+        or mission.state not in ("accepted", "active")
+    ):
+        raise HTTPException(409, "impact_not_active")
+    selected = session.get(RouteSelectionRecord, impact.route_selection_id)
+    latest = session.scalar(
+        select(RouteSelectionRecord)
+        .where(RouteSelectionRecord.mission_id == mission.id)
+        .order_by(RouteSelectionRecord.selected_at.desc(), RouteSelectionRecord.id.desc())
+    )
+    if selected is None or latest is None or selected.id != latest.id:
+        raise HTTPException(409, "selected_route_changed")
+    graph = session.get(CorridorVersion, mission.corridor_id)
+    if graph is None or graph.graph_version != mission.graph_version_id:
+        raise HTTPException(409, "graph_version_changed")
+    status = effective_status(
+        session,
+        impact.payload["segment_id"],
+        now,
+        vehicle_profile=mission.payload["vehicle_profile"],
+    )
+    if status.get("decision_id") != impact.decision_id or status["status"] not in (
+        "closed",
+        "restricted",
+    ):
+        raise HTTPException(409, "authority_decision_changed")
+    return impact, selected
 
 
 def build_router(factory, current_actor, settings):
@@ -183,9 +245,15 @@ def build_router(factory, current_actor, settings):
                     or mission.corridor_id != corridor.id
                 ):
                     raise HTTPException(403)
+                if mission.state == "planned":
+                    if body.impact_id is not None:
+                        raise HTTPException(422, "planned_mission_has_no_impact")
+                elif body.impact_id:
+                    current_impact(session, mission, body.impact_id, datetime.now(timezone.utc))
+                else:
+                    raise HTTPException(409, "active_impact_required")
                 if (
-                    mission.state != "planned"
-                    or mission.graph_version_id != corridor.graph_version
+                    mission.graph_version_id != corridor.graph_version
                     or mission.payload["vehicle_profile"] != body.vehicle_profile
                     or mission.payload["origin"] != body.origin.model_dump(mode="json")
                     or mission.payload["destination"] != body.destination.model_dump(mode="json")
@@ -242,10 +310,15 @@ def build_router(factory, current_actor, settings):
                     )
                     for segment in linked
                 }
-                blocked = [key for key, status in statuses.items() if status["status"] == "closed"]
+                blocked = [
+                    key for key, status in statuses.items()
+                    if status["status"] == "closed"
+                    or (body.impact_id and status["status"] == "restricted")
+                ]
                 if blocked:
                     excluded.extend(
-                        {"segment_id": key, "reason": "active_authority_closure"} for key in blocked
+                        {"segment_id": key, "reason": "active_authority_restriction"}
+                        for key in blocked
                     )
                     continue
                 routes.append(
@@ -295,6 +368,7 @@ def build_router(factory, current_actor, settings):
                 "retrieved_at": utc_datetime(snapshot.retrieved_at).isoformat(),
                 "graph_version_id": corridor.graph_version,
                 "mission_id": body.mission_id,
+                "impact_id": body.impact_id,
                 "vehicle_profile": body.vehicle_profile,
                 "departure_at": body.departure_at.isoformat(),
                 "vehicle_entitlement": "unverified_car_baseline",
@@ -533,5 +607,176 @@ def build_router(factory, current_actor, settings):
             ))
             session.commit()
             return {"selection_id": row.id, "status": "planning_baseline_only"}
+
+    @router.get("/v1/missions/{mission_id}/route-change-approval")
+    def get_route_change(mission_id: str, request: Request, actor=Depends(current_actor)):
+        with factory() as session:
+            mission = session.get(Mission, mission_id)
+            if not mission or mission.actor_id != actor.actor_id:
+                raise HTTPException(403)
+            access = AuthorizationService(session_factory=factory).authorize(
+                actor,
+                "view_mission",
+                ResourceScope(jurisdiction_id=mission.jurisdiction_id),
+                request_id=request.state.request_id,
+            )
+            if not access.allowed:
+                raise HTTPException(403)
+            row = session.scalar(
+                select(RouteChangeApproval)
+                .where(RouteChangeApproval.mission_id == mission_id)
+                .order_by(RouteChangeApproval.approved_at.desc(), RouteChangeApproval.id.desc())
+            )
+            return {"approval": None if row is None else row.payload}
+
+    @router.post("/v1/missions/{mission_id}/route-change-approval", status_code=201)
+    def approve_route_change(
+        mission_id: str,
+        body: RouteChangeInput,
+        request: Request,
+        actor=Depends(current_actor),
+        idempotency_key: str = Header(),
+    ):
+        if len(body.reason.strip()) < 10:
+            raise HTTPException(422, "reason_required")
+        try:
+            validate_idempotency_key(idempotency_key)
+        except ValueError:
+            raise HTTPException(422, "invalid_idempotency_key") from None
+        digest = canonical_request_hash({"mission_id": mission_id, **body.model_dump()})
+        with factory() as session:
+            mission = session.get(Mission, mission_id)
+            if not mission or mission.actor_id != actor.actor_id:
+                raise HTTPException(403)
+            access = AuthorizationService(session_factory=factory).authorize(
+                actor,
+                "compare_routes",
+                ResourceScope(jurisdiction_id=mission.jurisdiction_id),
+                request_id=request.state.request_id,
+            )
+            if not access.allowed:
+                raise HTTPException(403)
+            old = session.scalar(
+                select(RouteChangeApproval).where(
+                    RouteChangeApproval.actor_id == actor.actor_id,
+                    RouteChangeApproval.idempotency_key == idempotency_key,
+                )
+            )
+            if old:
+                if old.request_hash != digest:
+                    raise HTTPException(409, "idempotency_conflict")
+                return old.payload
+            now = datetime.now(timezone.utc)
+            impact, selected = current_impact(session, mission, body.impact_id, now)
+            if session.scalar(
+                select(RouteChangeApproval).where(RouteChangeApproval.impact_id == impact.id)
+            ):
+                raise HTTPException(409, "impact_already_approved")
+            comparison = session.get(RouteComparisonRecord, body.comparison_id)
+            if (
+                comparison is None
+                or comparison.actor_id != actor.actor_id
+                or comparison.corridor_id != mission.corridor_id
+                or comparison.graph_version != mission.graph_version_id
+                or comparison.payload.get("mission_id") != mission_id
+                or comparison.payload.get("impact_id") != impact.id
+            ):
+                raise HTTPException(409, "comparison_mismatch")
+            result = comparison.payload
+            route = next(
+                (
+                    candidate
+                    for candidate in result.get("routes", [])
+                    if candidate["route_id"] == body.route_id
+                ),
+                None,
+            )
+            if route is None or route["route_id"] == selected.route_id:
+                raise HTTPException(422, "new_candidate_route_required")
+            expires = datetime.fromisoformat(result["retrieved_at"]) + timedelta(
+                seconds=settings.source_refresh_seconds
+            )
+            if now >= expires:
+                raise HTTPException(409, "source_snapshot_expired")
+            candidate_segments = set(route.get("segment_ids", []))
+            corridor_segments = set(
+                session.scalars(
+                    select(RoadSegment.id).where(
+                        RoadSegment.corridor_version_id == mission.corridor_id
+                    )
+                ).all()
+            )
+            if (
+                not candidate_segments
+                or not candidate_segments <= corridor_segments
+                or impact.payload["segment_id"] in candidate_segments
+            ):
+                raise HTTPException(409, "candidate_coverage_unverified")
+            for segment_id in candidate_segments:
+                status = effective_status(
+                    session, segment_id, now, vehicle_profile=mission.payload["vehicle_profile"]
+                )
+                expected = route.get("decision_snapshots", {}).get(segment_id)
+                if (
+                    expected is None
+                    or status.get("decision_id") != expected.get("decision_id")
+                    or status["freshness"] != expected.get("freshness")
+                    or status["status"] in ("closed", "restricted")
+                ):
+                    raise HTTPException(409, "candidate_decision_changed")
+            approval_id = str(uuid4())
+            payload = {
+                "approval_id": approval_id,
+                "impact_id": impact.id,
+                "mission_id": mission_id,
+                "comparison_id": comparison.id,
+                "comparison_hash": canonical_request_hash(result),
+                "route_id": route["route_id"],
+                "selected_route_id": selected.route_id,
+                "route_snapshot": route,
+                "source_snapshot_id": result["source_snapshot_id"],
+                "source_sha256": result.get("source_sha256"),
+                "graph_version_id": mission.graph_version_id,
+                "decision_id": impact.decision_id,
+                "reason": body.reason.strip(),
+                "approved_at": now.isoformat(),
+                "expires_at": expires.isoformat(),
+                "status": "pending_driver_acknowledgment",
+                "limitation": "Replay planning baseline; no vehicle or road clearance.",
+            }
+            session.add(
+                RouteChangeApproval(
+                    id=approval_id,
+                    impact_id=impact.id,
+                    mission_id=mission_id,
+                    comparison_id=comparison.id,
+                    route_id=route["route_id"],
+                    actor_id=actor.actor_id,
+                    idempotency_key=idempotency_key,
+                    request_hash=digest,
+                    approved_at=now,
+                    payload=payload,
+                )
+            )
+            session.add(
+                AuditEvent(
+                    id=str(uuid4()),
+                    actor_id=actor.actor_id,
+                    action="routes.change_approved",
+                    target_type="mission",
+                    target_id=mission_id,
+                    request_id=request.state.request_id,
+                    jurisdiction_id=mission.jurisdiction_id,
+                    outcome="allowed",
+                    reason="pending_driver_acknowledgment",
+                    after_hash=canonical_request_hash(payload),
+                )
+            )
+            try:
+                session.commit()
+            except IntegrityError:
+                session.rollback()
+                raise HTTPException(409, "approval_conflict") from None
+            return payload
 
     return router

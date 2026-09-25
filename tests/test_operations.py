@@ -309,6 +309,194 @@ def test_mission_impacts_follow_selected_segments_and_decision_lifecycle(api):
     }
 
 
+def test_route_change_approval_is_scoped_idempotent_and_does_not_switch_driver_route(
+    api, monkeypatch
+):
+    client, factory, selected, actors = api
+    selected[0] = actors["dispatcher-north"]
+    now = datetime.now(timezone.utc)
+    from ner_lens.operations import StatusDecision
+    from ner_lens.routing import (
+        MissionImpactRecord,
+        RouteChangeApproval,
+        RouteComparisonRecord,
+        RouteSelectionRecord,
+    )
+
+    mid, impact_id, decision_id, prior_id, comparison_id = (str(uuid4()) for _ in range(5))
+    old_route, alternate_route = str(uuid4()), str(uuid4())
+    origin = {"type": "Point", "coordinates": [92, 25]}
+    destination = {"type": "Point", "coordinates": [92.1, 25.1]}
+    deadline = now + timedelta(hours=2)
+    with factory.begin() as session:
+        session.add(
+            RoadSegment(
+                id="north-bypass",
+                corridor_version_id="north",
+                external_ref="north-bypass",
+                segment_type="road",
+                direction="both",
+                geometry={"type": "LineString", "coordinates": [[92, 25], [92.1, 25.1]]},
+            )
+        )
+        session.add(
+            Mission(
+                id=mid,
+                actor_id="dispatcher-north",
+                corridor_id="north",
+                jurisdiction_id="north",
+                graph_version_id="test-v1",
+                state="active",
+                created_at=now,
+                payload={
+                    "vehicle_profile": "rigid_truck",
+                    "origin": origin,
+                    "destination": destination,
+                    "delivery_window": {"end": deadline.isoformat()},
+                },
+            )
+        )
+        session.add(
+            StatusDecision(
+                id=decision_id,
+                segment_id="north",
+                actor_id="district_officer-north",
+                jurisdiction_id="north",
+                created_at=now,
+                effective_at=now - timedelta(minutes=1),
+                valid_until=now + timedelta(hours=1),
+                payload={"status": "closed", "direction": "both", "vehicle_scope": ["all"]},
+            )
+        )
+        session.add(
+            RouteComparisonRecord(
+                id=comparison_id,
+                actor_id="dispatcher-north",
+                corridor_id="north",
+                graph_version="test-v1",
+                idempotency_key="alternate-compare",
+                request_hash="a" * 64,
+                created_at=now,
+                payload={
+                    "mission_id": mid,
+                    "impact_id": impact_id,
+                    "retrieved_at": now.isoformat(),
+                    "source_snapshot_id": "source-1",
+                    "source_sha256": "b" * 64,
+                    "routes": [
+                        {
+                            "route_id": alternate_route,
+                            "segment_ids": ["north-bypass"],
+                            "decision_snapshots": {
+                                "north-bypass": {"decision_id": None, "freshness": "missing"}
+                            },
+                        }
+                    ],
+                },
+            )
+        )
+        session.add(
+            RouteComparisonRecord(
+                id=prior_id,
+                actor_id="dispatcher-north",
+                corridor_id="north",
+                graph_version="test-v1",
+                idempotency_key="prior-compare",
+                request_hash="c" * 64,
+                created_at=now,
+                payload={"routes": []},
+            )
+        )
+        selection_id = str(uuid4())
+        session.add(
+            RouteSelectionRecord(
+                id=selection_id,
+                mission_id=mid,
+                comparison_id=prior_id,
+                route_id=old_route,
+                actor_id="dispatcher-north",
+                idempotency_key="prior-selection",
+                request_hash="d" * 64,
+                selected_at=now,
+                expires_at=now + timedelta(hours=1),
+            )
+        )
+        session.add(
+            MissionImpactRecord(
+                id=impact_id,
+                corridor_id="north",
+                mission_id=mid,
+                decision_id=decision_id,
+                route_selection_id=selection_id,
+                state="active",
+                assessed_at=now,
+                payload={"segment_id": "north"},
+            )
+        )
+    monkeypatch.setattr(
+        "ner_lens.routing.retrieve",
+        lambda *a, **k: SourceSnapshot(
+            id=str(uuid4()),
+            source="mappls",
+            url="https://route.mappls.com/route/direction",
+            retrieved_at=datetime.now(timezone.utc),
+            status="available",
+            reason="retrieval_validated",
+            sha256="e" * 64,
+            parser_version="test",
+            records=[
+                {
+                    "geometry": {"type": "LineString", "coordinates": [[92, 25], [92.1, 25.1]]},
+                    "distance_m": 1000,
+                    "duration_seconds": 120,
+                }
+            ],
+        ),
+    )
+    compare_body = {
+        "corridor_id": "north",
+        "graph_version_id": "test-v1",
+        "mission_id": mid,
+        "origin": origin,
+        "destination": destination,
+        "vehicle_profile": "rigid_truck",
+        "departure_at": now.isoformat(),
+        "deadline_at": deadline.isoformat(),
+    }
+    assert post(client, "/v1/routes/compare", compare_body, "no-impact").status_code == 409
+    comparison = post(
+        client, "/v1/routes/compare", {**compare_body, "impact_id": impact_id}, "impacted-compare"
+    )
+    assert comparison.status_code == 200, comparison.text
+    assert comparison.json()["impact_id"] == impact_id
+    assert comparison.json()["mode"] == "no_verified_feasible_route"
+    path = f"/v1/missions/{mid}/route-change-approval"
+    body = {
+        "impact_id": impact_id,
+        "comparison_id": comparison_id,
+        "route_id": alternate_route,
+        "reason": "Avoid the authority closure on the selected route",
+    }
+    selected[0] = actors["dispatcher-south"]
+    assert post(client, path, body, "approve").status_code == 403
+    selected[0] = actors["dispatcher-north"]
+    assert post(client, path, {**body, "reason": "           "}, "blank-reason").status_code == 422
+    first = post(client, path, body, "approve")
+    assert first.status_code == 201, first.text
+    assert first.json()["status"] == "pending_driver_acknowledgment"
+    assert post(client, path, body, "approve").json() == first.json()
+    assert post(client, path, {**body, "reason": "Changed reason"}, "approve").status_code == 409
+    assert post(client, path, body, "approve-again").status_code == 409
+    assert client.get(path).json()["approval"]["approval_id"] == first.json()["approval_id"]
+    with factory() as session:
+        assert session.query(RouteChangeApproval).count() == 1
+    saved = client.get(f"/v1/missions/{mid}/route-selection").json()["selection"]
+    assert saved["route_id"] == old_route
+    with factory.begin() as session:
+        session.get(StatusDecision, decision_id).valid_until = now - timedelta(seconds=1)
+    assert post(client, path, body, "approval-after-expiry").status_code == 409
+
+
 def test_report_review_status_expiry_and_audit(api):
     client, factory, selected, actors = api
     payload = report_body()
