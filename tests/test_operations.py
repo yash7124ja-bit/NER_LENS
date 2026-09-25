@@ -284,3 +284,58 @@ def test_validation_and_mission_gps(api):
     with factory() as session:
         assert session.scalar(select(func.count()).select_from(GPSObservation)) == 2
         assert session.get(Mission, mid).graph_version_id == "test-v1"
+
+
+def test_unassigned_mission_is_not_visible_or_actionable(api):
+    client, _, selected, actors = api
+    selected[0] = actors["dispatcher-north"]
+    now = datetime.now(timezone.utc)
+    created = post(
+        client,
+        "/v1/missions",
+        {
+            "cargo_class": "medicine",
+            "priority": "high",
+            "origin": {"type": "Point", "coordinates": [92, 25]},
+            "destination": {"type": "Point", "coordinates": [92.1, 25.1]},
+            "delivery_window": {
+                "start": now.isoformat(),
+                "end": (now + timedelta(hours=1)).isoformat(),
+            },
+            "vehicle_profile": "rigid_truck",
+            "corridor_id": "north",
+            "gps_consent": {"basis": "mission_assignment", "recorded_at": now.isoformat()},
+            "assigned_actor_ids": [],
+        },
+    )
+    assert created.status_code == 201, created.text
+    mission_id = created.json()["mission_id"]
+    selected[0] = actors["field_reporter-north"]
+    assert client.get("/v1/missions", params={"corridor_id": "north"}).json()["missions"] == []
+    assert client.get(f"/v1/missions/{mission_id}").status_code == 403
+    for action in ("start", "complete"):
+        assert post(client, f"/v1/missions/{mission_id}/{action}", None).status_code == 403
+    point = {
+        "sequence": 1,
+        "captured_at": now.isoformat(),
+        "geometry": {"type": "Point", "coordinates": [92, 25]},
+        "accuracy_m": 5,
+    }
+    assert (
+        post(
+            client,
+            f"/v1/missions/{mission_id}/positions",
+            {
+                "device_id": "unassigned-test",
+                "sequence_start": 1,
+                "points": [point],
+            },
+        ).status_code
+        == 403
+    )
+    selected[0] = actors["regional_viewer-north"]
+    assert client.get(f"/v1/missions/{mission_id}").status_code == 403
+    selected[0] = actors["field_reporter-south"]
+    assert client.get("/v1/missions", params={"corridor_id": "north"}).status_code == 403
+    selected[0] = replace(actors["field_reporter-north"], expires_at=now - timedelta(seconds=1))
+    assert client.get("/v1/missions", params={"corridor_id": "north"}).status_code == 403
