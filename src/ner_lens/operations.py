@@ -245,6 +245,15 @@ class MissionInput(Input):
     assigned_actor_ids: list[str] = Field(default_factory=list, max_length=100)
 
 
+class ConfirmationInput(Input):
+    basis: Literal["dispatcher_observation", "receiver_attestation"]
+    note: str = Field(min_length=1, max_length=1000)
+
+
+class CancellationInput(Input):
+    reason: str = Field(min_length=1, max_length=1000)
+
+
 class Position(Input):
     sequence: int = Field(ge=0)
     captured_at: AwareDatetime
@@ -699,7 +708,9 @@ def build_router(factory, current_actor):
         if not row:
             fail(404, "mission_not_found")
         if action == "submit_gps":
-            if not session.get(MissionAssignment, (actor.actor_id, mission_id)):
+            if row.driver_actor_id != actor.actor_id and not session.get(
+                MissionAssignment, (actor.actor_id, mission_id)
+            ):
                 fail(403, "mission_assignment_required")
             authorize(actor, action, row.jurisdiction_id)
         elif action == "view_assigned_mission":
@@ -718,8 +729,17 @@ def build_router(factory, current_actor):
             .limit(1)
         )
         deadline = datetime.fromisoformat(row.payload["delivery_window"]["end"])
+        history = session.scalars(
+            select(AuditEvent).where(
+                AuditEvent.target_id == row.id,
+                AuditEvent.action.like("mission.%"),
+            ).order_by(AuditEvent.occurred_at, AuditEvent.id)
+        ).all() if private else []
         return {
-            **row.payload,
+            **{
+                key: value for key, value in row.payload.items()
+                if private or key not in {"confirmation", "cancellation_reason"}
+            },
             "mission_id": row.id,
             "state": row.state,
             "graph_version_id": row.graph_version_id,
@@ -741,6 +761,11 @@ def build_router(factory, current_actor):
             "delay_estimate": None,
             "delay_estimate_basis": "no_verified_eta",
             "checkpoints": [],
+            **({"state_history": [
+                {"action": event.action, "actor_id": event.actor_id,
+                 "at": utc(event.occurred_at).isoformat()}
+                for event in history
+            ]} if private else {}),
         }
 
     @router.post("/v1/missions", status_code=201)
@@ -961,13 +986,17 @@ def build_router(factory, current_actor):
         idempotency_key: str = Header(),
     ):
         with factory() as session:
-            action = "submit_gps" if "field_reporter" in actor.roles else "view_mission"
+            stored = session.get(Mission, mission_id)
+            if stored and stored.driver_actor_id:
+                action = "view_assigned_mission"
+            else:
+                action = "submit_gps" if "field_reporter" in actor.roles else "view_mission"
             row = mission_scope(session, actor, mission_id, action)
 
             def create(request_id, _audit):
                 if datetime.fromisoformat(row.payload["delivery_window"]["end"]) <= now_utc():
                     fail(409, "mission_deadline_passed")
-                if row.state != "planned":
+                if row.state != ("accepted" if row.driver_actor_id else "planned"):
                     fail(409, "mission_already_started")
                 row.state, row.started_at = "active", now_utc()
                 return {
@@ -998,6 +1027,8 @@ def build_router(factory, current_actor):
             row = mission_scope(session, actor, mission_id, action)
 
             def create(request_id, _audit):
+                if row.driver_actor_id:
+                    fail(409, "driver_declaration_and_dispatcher_confirmation_required")
                 if row.state != "active":
                     fail(409, "mission_not_active")
                 row.state, row.completed_at = "completed", now_utc()
@@ -1013,6 +1044,90 @@ def build_router(factory, current_actor):
                 "mission.completed",
                 create,
             )
+
+    @router.post("/v1/missions/{mission_id}/accept", status_code=201)
+    def accept_mission(mission_id: str, actor: AuthContext = Depends(current_actor),
+                       idempotency_key: str = Header()):
+        with factory() as session:
+            row = mission_scope(session, actor, mission_id, "view_assigned_mission")
+
+            def create(request_id, _audit):
+                if row.state != "planned":
+                    fail(409, "mission_not_planned")
+                if datetime.fromisoformat(row.payload["delivery_window"]["end"]) <= now_utc():
+                    fail(409, "mission_deadline_passed")
+                row.state = "accepted"
+                return {**mission_view(session, row), "request_id": request_id}
+
+            return mutate(session, actor, f"/v1/missions/{mission_id}/accept", idempotency_key,
+                          {}, row.jurisdiction_id, "mission.accepted", create)
+
+    @router.post("/v1/missions/{mission_id}/reject", status_code=201)
+    def reject_mission(mission_id: str, actor: AuthContext = Depends(current_actor),
+                       idempotency_key: str = Header()):
+        with factory() as session:
+            row = mission_scope(session, actor, mission_id, "view_assigned_mission")
+
+            def create(request_id, _audit):
+                if row.state != "planned":
+                    fail(409, "mission_not_planned")
+                row.state = "rejected"
+                return {**mission_view(session, row), "request_id": request_id}
+
+            return mutate(session, actor, f"/v1/missions/{mission_id}/reject", idempotency_key,
+                          {}, row.jurisdiction_id, "mission.rejected", create)
+
+    @router.post("/v1/missions/{mission_id}/declare-delivery", status_code=201)
+    def declare_delivery(mission_id: str, actor: AuthContext = Depends(current_actor),
+                         idempotency_key: str = Header()):
+        with factory() as session:
+            row = mission_scope(session, actor, mission_id, "view_assigned_mission")
+
+            def create(request_id, _audit):
+                if row.state != "active":
+                    fail(409, "mission_not_active")
+                row.state = "delivered"
+                return {**mission_view(session, row), "request_id": request_id}
+
+            return mutate(session, actor, f"/v1/missions/{mission_id}/declare-delivery",
+                          idempotency_key, {}, row.jurisdiction_id,
+                          "mission.driver_declared_delivery", create)
+
+    @router.post("/v1/missions/{mission_id}/confirm-delivery", status_code=201)
+    def confirm_delivery(mission_id: str, body: ConfirmationInput,
+                         actor: AuthContext = Depends(current_actor),
+                         idempotency_key: str = Header()):
+        with factory() as session:
+            row = mission_scope(session, actor, mission_id, "view_mission")
+
+            def create(request_id, _audit):
+                if not row.driver_actor_id or row.state != "delivered":
+                    fail(409, "driver_declaration_required")
+                row.state, row.completed_at = "completed", now_utc()
+                row.payload = {**row.payload, "confirmation": body.model_dump(mode="json")}
+                return {**mission_view(session, row), "request_id": request_id}
+
+            return mutate(session, actor, f"/v1/missions/{mission_id}/confirm-delivery",
+                          idempotency_key, body.model_dump(mode="json"), row.jurisdiction_id,
+                          "mission.delivery_confirmed", create)
+
+    @router.post("/v1/missions/{mission_id}/cancel", status_code=201)
+    def cancel_mission(mission_id: str, body: CancellationInput,
+                       actor: AuthContext = Depends(current_actor),
+                       idempotency_key: str = Header()):
+        with factory() as session:
+            row = mission_scope(session, actor, mission_id, "view_mission")
+
+            def create(request_id, _audit):
+                if row.state not in ("planned", "accepted", "active", "delivered"):
+                    fail(409, "mission_cannot_be_cancelled")
+                row.state = "cancelled"
+                row.payload = {**row.payload, "cancellation_reason": body.reason}
+                return {**mission_view(session, row), "request_id": request_id}
+
+            return mutate(session, actor, f"/v1/missions/{mission_id}/cancel",
+                          idempotency_key, body.model_dump(mode="json"), row.jurisdiction_id,
+                          "mission.cancelled", create)
 
     @router.post("/v1/missions/{mission_id}/positions", status_code=201)
     def positions(

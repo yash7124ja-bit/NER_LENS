@@ -8,7 +8,7 @@ from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from ner_lens.config import Settings
 from ner_lens.corridor.models import CorridorVersion, RoadSegment
@@ -117,6 +117,10 @@ def api(tmp_path, monkeypatch):
     app.include_router(routing_router(factory, lambda: selected[0], Settings(database_url=url)))
     with TestClient(app) as client:
         yield client, factory, selected, actors
+    with factory.begin() as session:
+        session.execute(update(Mission).where(
+            Mission.state.not_in(("planned", "active", "completed"))
+        ).values(state="planned"))
     factory.kw["bind"].dispose()
     command.downgrade(config, "0005_source_snapshots")
 
@@ -536,6 +540,75 @@ def test_scoped_vehicle_driver_and_private_receiving_assignment(api):
         for item in client.get("/v1/missions", params={"corridor_id": "north"}).json()["missions"]
     ] == [mission_id]
     assert client.get(f"/v1/missions/{mission_id}").status_code == 200
-    assert post(client, f"/v1/missions/{mission_id}/start", None).status_code == 403
+    assert post(client, f"/v1/missions/{mission_id}/start", None).status_code == 409
     selected[0] = actors["driver-south"]
     assert client.get(f"/v1/missions/{mission_id}").status_code == 403
+
+
+def test_assigned_driver_lifecycle_requires_separate_confirmation(api):
+    client, factory, selected, actors = api
+    now = datetime.now(timezone.utc)
+    with factory.begin() as session:
+        session.add(Vehicle(id="vehicle-north", jurisdiction_id="north",
+                            alias="Fleet A7", profile="rigid_truck", active=True))
+    selected[0] = actors["dispatcher-north"]
+    body = {
+        "cargo_class": "medicine", "priority": "high",
+        "origin": {"type": "Point", "coordinates": [92, 25]},
+        "destination": {"type": "Point", "coordinates": [92.1, 25.1]},
+        "delivery_window": {"start": now.isoformat(),
+                            "end": (now + timedelta(hours=2)).isoformat()},
+        "vehicle_profile": "rigid_truck", "vehicle_id": "vehicle-north",
+        "driver_actor_id": "driver-north", "corridor_id": "north",
+        "gps_consent": {"basis": "mission_assignment", "recorded_at": now.isoformat()},
+    }
+    created = post(client, "/v1/missions", body)
+    assert created.status_code == 201, created.text
+    mid = created.json()["mission_id"]
+    assert post(client, f"/v1/missions/{mid}/start", None).status_code == 403
+    assert post(client, f"/v1/missions/{mid}/complete", None).status_code == 409
+    selected[0] = actors["driver-south"]
+    assert post(client, f"/v1/missions/{mid}/accept", None).status_code == 403
+    selected[0] = actors["driver-north"]
+    assert post(client, f"/v1/missions/{mid}/declare-delivery", None).status_code == 409
+    accepted = post(client, f"/v1/missions/{mid}/accept", None, "accept")
+    assert accepted.status_code == 201, accepted.text
+    assert accepted.json()["state"] == "accepted"
+    assert post(client, f"/v1/missions/{mid}/accept", None, "accept").json() == accepted.json()
+    started = post(client, f"/v1/missions/{mid}/start", None, "start")
+    assert started.status_code == 201, started.text
+    fix = {
+        "device_id": "driver-device", "sequence_start": 1,
+        "points": [{"sequence": 1, "captured_at": datetime.now(timezone.utc).isoformat(),
+                    "geometry": {"type": "Point", "coordinates": [92, 25]},
+                    "accuracy_m": 10}],
+    }
+    assert post(client, f"/v1/missions/{mid}/positions", fix).status_code == 201
+    declared = post(client, f"/v1/missions/{mid}/declare-delivery", None)
+    assert declared.status_code == 201 and declared.json()["state"] == "delivered"
+    selected[0] = actors["dispatcher-north"]
+    assert client.get(f"/v1/missions/{mid}").json()["state_history"][-1]["action"] == (
+        "mission.driver_declared_delivery"
+    )
+    confirmed = post(client, f"/v1/missions/{mid}/confirm-delivery", {
+        "basis": "receiver_attestation", "note": "Receiver verbally confirmed receipt"
+    })
+    assert confirmed.status_code == 201 and confirmed.json()["state"] == "completed"
+    assert client.get(f"/v1/missions/{mid}").json()["confirmation"]["basis"] == (
+        "receiver_attestation"
+    )
+    assert "confirmation" not in client.get(
+        "/v1/missions", params={"corridor_id": "north"}
+    ).json()["missions"][0]
+    assert post(client, f"/v1/missions/{mid}/cancel", {"reason": "too late"}).status_code == 409
+
+    rejected_mission = post(client, "/v1/missions", body).json()["mission_id"]
+    selected[0] = actors["driver-north"]
+    assert post(client, f"/v1/missions/{rejected_mission}/reject", None).status_code == 201
+    assert post(client, f"/v1/missions/{rejected_mission}/accept", None).status_code == 409
+    with factory.begin() as session:
+        assignment = session.scalar(select(RoleAssignment).where(
+            RoleAssignment.actor_id == "driver-north", RoleAssignment.role == "driver"
+        ))
+        session.delete(assignment)
+    assert client.get(f"/v1/missions/{mid}").status_code == 403
