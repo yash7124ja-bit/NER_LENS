@@ -16,7 +16,7 @@ from ner_lens.corridor.models import Base, CorridorVersion, RoadSegment
 from ner_lens.identity.models import AuditEvent
 from ner_lens.identity.replay import authorize_corridor
 from ner_lens.identity.service import AuthorizationService, ResourceScope
-from ner_lens.operations import Mission, Point, effective_status
+from ner_lens.operations import Mission, Point, StatusDecision, effective_status
 from ner_lens.sources import SourceSnapshot, retrieve
 from ner_lens.spatial import assert_corridor_point, projected_corridor
 
@@ -48,6 +48,22 @@ class RouteSelectionRecord(Base):
     request_hash: Mapped[str] = mapped_column(String(64))
     selected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class MissionImpactRecord(Base):
+    __tablename__ = "mission_impact"
+    __table_args__ = (UniqueConstraint(
+        "mission_id", "decision_id", "route_selection_id", name="uq_mission_impact_basis"
+    ),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    corridor_id: Mapped[str] = mapped_column(ForeignKey("corridor_version.id"), index=True)
+    mission_id: Mapped[str] = mapped_column(ForeignKey("mission.id"), index=True)
+    decision_id: Mapped[str] = mapped_column(ForeignKey("status_decision.id"))
+    route_selection_id: Mapped[str] = mapped_column(ForeignKey("route_selection.id"))
+    state: Mapped[str] = mapped_column(String(16))
+    assessed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict] = mapped_column(JSON)
 
 
 class RouteRequest(BaseModel):
@@ -346,6 +362,108 @@ def build_router(factory, current_actor, settings):
                 if datetime.now(timezone.utc) >= utc_datetime(row.expires_at)
                 else "planning_baseline_only",
             }}
+
+    @router.get("/v1/corridors/{corridor_id}/mission-impacts")
+    def mission_impacts(corridor_id: str, request: Request, actor=Depends(current_actor)):
+        # ponytail: read-through assessment; use an event worker if fanout grows.
+        with factory() as session:
+            corridor = session.get(CorridorVersion, corridor_id)
+            if not corridor:
+                raise HTTPException(404, "corridor_not_found")
+            access = AuthorizationService(session_factory=factory).authorize(
+                actor, "compare_routes", ResourceScope(jurisdiction_id=corridor.jurisdiction_id),
+                request_id=request.state.request_id,
+            )
+            if not access.allowed:
+                raise HTTPException(403)
+            now = datetime.now(timezone.utc)
+            segment_ids = set(session.scalars(select(RoadSegment.id).where(
+                RoadSegment.corridor_version_id == corridor_id
+            )).all())
+            active_ids, unassessed = set(), []
+            missions = session.scalars(select(Mission).where(
+                Mission.corridor_id == corridor_id,
+                Mission.state.in_(("planned", "accepted", "active"))
+            )).all()
+            for mission in missions:
+                selection = session.scalar(select(RouteSelectionRecord).where(
+                    RouteSelectionRecord.mission_id == mission.id
+                ).order_by(RouteSelectionRecord.selected_at.desc(), RouteSelectionRecord.id.desc()))
+                if selection is None:
+                    unassessed.append({"mission_id": mission.id, "reason": "no_selected_baseline"})
+                    continue
+                comparison = session.get(RouteComparisonRecord, selection.comparison_id)
+                if (
+                    mission.graph_version_id != corridor.graph_version
+                    or comparison is None
+                    or comparison.graph_version != corridor.graph_version
+                ):
+                    unassessed.append({"mission_id": mission.id, "reason": "graph_changed"})
+                    continue
+                route = next((item for item in comparison.payload.get("routes", [])
+                              if item["route_id"] == selection.route_id), None)
+                if route is None:
+                    unassessed.append({"mission_id": mission.id, "reason": "route_missing"})
+                    continue
+                for segment_id in set(route.get("segment_ids", [])) & segment_ids:
+                    status = effective_status(session, segment_id, now,
+                                              vehicle_profile=mission.payload["vehicle_profile"])
+                    if status["status"] not in ("closed", "restricted"):
+                        continue
+                    baseline = route.get("decision_snapshots", {}).get(segment_id, {})
+                    if (status.get("decision_id") == baseline.get("decision_id")
+                            and status["freshness"] == baseline.get("freshness")):
+                        continue
+                    decision_id = status["decision_id"]
+                    source_decision = session.get(StatusDecision, decision_id)
+                    row = session.scalar(select(MissionImpactRecord).where(
+                        MissionImpactRecord.mission_id == mission.id,
+                        MissionImpactRecord.decision_id == decision_id,
+                        MissionImpactRecord.route_selection_id == selection.id,
+                    ))
+                    payload = {
+                        "segment_id": segment_id, "status": status["status"],
+                        "decision_evidence_ids": status.get("evidence_ids", []),
+                        "decision_valid_until": utc_datetime(
+                            source_decision.valid_until
+                        ).isoformat(),
+                        "route_id": selection.route_id,
+                        "comparison_id": comparison.id,
+                        "source_snapshot_id": comparison.payload.get("source_snapshot_id"),
+                        "graph_version_id": corridor.graph_version,
+                        "assessment_basis": "selected_geometry_baseline_unverified",
+                    }
+                    if row is None:
+                        row = MissionImpactRecord(
+                            id=str(uuid4()), corridor_id=corridor_id, mission_id=mission.id,
+                            decision_id=decision_id, route_selection_id=selection.id,
+                            state="active", assessed_at=now, resolved_at=None, payload=payload,
+                        )
+                        session.add(row)
+                    elif row.state != "active":
+                        row.state, row.resolved_at = "active", None
+                    active_ids.add(row.id)
+            session.flush()
+            rows = session.scalars(select(MissionImpactRecord).where(
+                MissionImpactRecord.corridor_id == corridor_id
+            ).order_by(MissionImpactRecord.assessed_at.desc(), MissionImpactRecord.id.desc())).all()
+            for row in rows:
+                if row.state == "active" and row.id not in active_ids:
+                    row.state, row.resolved_at = "resolved", now
+            result = {
+                "corridor_id": corridor_id,
+                "assessed_at": now.isoformat(),
+                "assessments": [{
+                    **row.payload, "impact_id": row.id, "mission_id": row.mission_id,
+                    "decision_id": row.decision_id, "route_selection_id": row.route_selection_id,
+                    "state": row.state, "resolved_at": (
+                        utc_datetime(row.resolved_at).isoformat() if row.resolved_at else None
+                    ),
+                } for row in rows],
+                "unassessed": unassessed,
+            }
+            session.commit()
+            return result
 
     @router.post("/v1/missions/{mission_id}/route-selection", status_code=201)
     def select_route(mission_id: str, body: RouteSelectionInput, request: Request,

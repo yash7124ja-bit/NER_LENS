@@ -228,6 +228,87 @@ def test_route_baseline_selection_rejects_stale_and_changed_decisions(api, monke
     assert post(client, path, fresh_choice).status_code == 409
 
 
+def test_mission_impacts_follow_selected_segments_and_decision_lifecycle(api):
+    client, factory, selected, actors = api
+    selected[0] = actors["dispatcher-north"]
+    now = datetime.now(timezone.utc)
+    from ner_lens.operations import StatusDecision
+    from ner_lens.routing import MissionImpactRecord, RouteComparisonRecord, RouteSelectionRecord
+
+    mission_ids = [str(uuid4()) for _ in range(3)]
+    comparison_id = str(uuid4())
+    routes = [{"route_id": str(uuid4()), "segment_ids": segments,
+               "decision_snapshots": {"north": {"decision_id": None, "freshness": "missing"}}}
+              for segments in (["north"], ["south"])]
+    with factory.begin() as session:
+        session.add(RouteComparisonRecord(
+            id=comparison_id, actor_id="dispatcher-north", corridor_id="north",
+            graph_version="test-v1", idempotency_key="impact-compare",
+            request_hash="a" * 64, created_at=now,
+            payload={"routes": routes, "source_snapshot_id": "source-1"},
+        ))
+        for index, mid in enumerate(mission_ids):
+            session.add(Mission(
+                id=mid, actor_id="dispatcher-north", corridor_id="north",
+                jurisdiction_id="north", graph_version_id="test-v1",
+                state="completed" if index == 1 else "active", created_at=now,
+                payload={"vehicle_profile": "rigid_truck"},
+            ))
+            session.add(RouteSelectionRecord(
+                id=str(uuid4()), mission_id=mid, comparison_id=comparison_id,
+                route_id=routes[1 if index == 2 else 0]["route_id"],
+                actor_id="dispatcher-north", idempotency_key=f"impact-select-{index}",
+                request_hash="b" * 64, selected_at=now,
+                expires_at=now + timedelta(hours=1),
+            ))
+    path = "/v1/corridors/north/mission-impacts"
+    assert client.get(path).json()["assessments"] == []
+    selected[0] = actors["dispatcher-south"]
+    assert client.get(path).status_code == 403
+    selected[0] = actors["dispatcher-north"]
+    first_decision = str(uuid4())
+    with factory.begin() as session:
+        session.add(StatusDecision(
+            id=first_decision, segment_id="north", actor_id="district_officer-north",
+            jurisdiction_id="north", created_at=now,
+            effective_at=now - timedelta(minutes=2), valid_until=now + timedelta(hours=1),
+            payload={"status": "closed", "direction": "both", "vehicle_scope": ["all"],
+                     "valid_until": (now + timedelta(hours=1)).isoformat(),
+                     "evidence_ids": []},
+        ))
+    assessments = client.get(path).json()["assessments"]
+    assert len(assessments) == 1
+    assert assessments[0]["mission_id"] == mission_ids[0]
+    assert assessments[0]["decision_id"] == first_decision
+    assert assessments[0]["assessment_basis"] == "selected_geometry_baseline_unverified"
+    assert client.get(path).json()["assessments"] == assessments
+    with factory.begin() as session:
+        assert session.query(MissionImpactRecord).count() == 1
+        assert session.get(Mission, mission_ids[0]).state == "active"
+        session.get(StatusDecision, first_decision).valid_until = now - timedelta(seconds=1)
+    resolved = client.get(path).json()["assessments"]
+    assert len(resolved) == 1 and resolved[0]["state"] == "resolved"
+    with factory.begin() as session:
+        session.add(StatusDecision(
+            id=str(uuid4()), segment_id="north", actor_id="district_officer-north",
+            jurisdiction_id="north", created_at=now + timedelta(seconds=1),
+            effective_at=now - timedelta(minutes=1), valid_until=now + timedelta(hours=1),
+            payload={"status": "restricted", "direction": "both", "vehicle_scope": ["all"],
+                     "valid_until": (now + timedelta(hours=1)).isoformat(),
+                     "evidence_ids": []},
+        ))
+    refreshed = client.get(path).json()["assessments"]
+    assert len(refreshed) == 2
+    assert [item["state"] for item in refreshed].count("active") == 1
+    with factory.begin() as session:
+        session.get(CorridorVersion, "north").graph_version = "test-v2"
+    changed = client.get(path).json()
+    assert all(item["state"] == "resolved" for item in changed["assessments"])
+    assert {item["mission_id"] for item in changed["unassessed"]} == {
+        mission_ids[0], mission_ids[2]
+    }
+
+
 def test_report_review_status_expiry_and_audit(api):
     client, factory, selected, actors = api
     payload = report_body()
