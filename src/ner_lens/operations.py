@@ -64,6 +64,17 @@ class EvidenceReview(Base):
     payload: Mapped[dict] = mapped_column(JSON)
 
 
+class FieldClarification(Base):
+    __tablename__ = "field_clarification"
+    __table_args__ = (UniqueConstraint("review_id", name="uq_clarification_review"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    evidence_id: Mapped[str] = mapped_column(ForeignKey("field_report.id"), index=True)
+    review_id: Mapped[str] = mapped_column(ForeignKey("evidence_review.id"))
+    actor_id: Mapped[str] = mapped_column(ForeignKey("actor.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    note: Mapped[str] = mapped_column(String(4000))
+
+
 class StatusDecision(Base):
     __tablename__ = "status_decision"
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -190,6 +201,10 @@ class ReviewInput(Input):
                 "merge action requires a merge target; other actions cannot supply one"
             )
         return self
+
+
+class ClarificationInput(Input):
+    note: str = Field(min_length=1, max_length=4000)
 
 
 class StatusInput(Input):
@@ -626,6 +641,73 @@ def build_router(factory, current_actor):
                 "evidence.reviewed",
                 create,
             )
+
+    @router.get("/v1/field-reports/{evidence_id}/history")
+    def report_history(evidence_id: str, actor: AuthContext = Depends(current_actor)):
+        with factory() as session:
+            report = session.get(FieldReport, evidence_id)
+            if not report:
+                fail(404, "evidence_not_found")
+            reviewer = "reviewer" in actor.roles and report.actor_id != actor.actor_id
+            authorize(actor, "review_evidence" if reviewer else "view_own_report",
+                      report.jurisdiction_id,
+                      **({} if reviewer else {"owner_actor_id": report.actor_id}))
+            reviews = session.scalars(select(EvidenceReview).where(
+                EvidenceReview.evidence_id == evidence_id
+            ).order_by(EvidenceReview.created_at, EvidenceReview.id)).all()
+            responses = session.scalars(select(FieldClarification).where(
+                FieldClarification.evidence_id == evidence_id
+            ).order_by(FieldClarification.created_at, FieldClarification.id)).all()
+            latest = reviews[-1] if reviews else None
+            answered = any(row.review_id == latest.id for row in responses) if latest else False
+            history = [
+                {"kind": "review", "id": row.id, "action": row.payload["action"],
+                 "note": row.payload["note"], "actor_id": row.actor_id,
+                 "at": utc(row.created_at).isoformat(),
+                 "merge_into_evidence_id": row.payload.get("merge_into_evidence_id")}
+                for row in reviews
+            ] + [
+                {"kind": "clarification", "id": row.id, "review_id": row.review_id,
+                 "note": row.note, "actor_id": row.actor_id,
+                 "at": utc(row.created_at).isoformat()}
+                for row in responses
+            ]
+            history.sort(key=lambda row: (row["at"], row["id"]))
+            return {"evidence_id": evidence_id, "review_state": latest.payload["action"]
+                    if latest else "unreviewed", "can_respond": not reviewer and bool(latest)
+                    and latest.payload["action"] == "needs_clarification" and not answered,
+                    "history": history}
+
+    @router.post("/v1/field-reports/{evidence_id}/clarifications", status_code=201)
+    def clarify(evidence_id: str, body: ClarificationInput,
+                actor: AuthContext = Depends(current_actor),
+                idempotency_key: str = Header()):
+        with factory() as session:
+            report = session.get(FieldReport, evidence_id)
+            if not report:
+                fail(404, "evidence_not_found")
+            authorize(actor, "view_own_report", report.jurisdiction_id,
+                      owner_actor_id=report.actor_id)
+
+            def create(request_id, _audit):
+                review = latest_review(session, evidence_id)
+                if not review or review.payload["action"] != "needs_clarification":
+                    fail(409, "clarification_not_requested")
+                if session.scalar(select(FieldClarification).where(
+                    FieldClarification.review_id == review.id
+                )):
+                    fail(409, "clarification_already_answered")
+                row = FieldClarification(
+                    id=str(uuid4()), evidence_id=evidence_id, review_id=review.id,
+                    actor_id=actor.actor_id, created_at=now_utc(), note=body.note,
+                )
+                session.add(row)
+                return {"clarification_id": row.id, "field_report_id": evidence_id,
+                        "review_id": review.id, "request_id": request_id}
+
+            return mutate(session, actor, f"/v1/field-reports/{evidence_id}/clarifications",
+                          idempotency_key, body.model_dump(mode="json"),
+                          report.jurisdiction_id, "evidence.clarified", create)
 
     @router.post("/v1/status-decisions", status_code=201)
     def status(

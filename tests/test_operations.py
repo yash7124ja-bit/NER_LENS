@@ -280,6 +280,61 @@ def test_report_review_status_expiry_and_audit(api):
     assert post(client, "/v1/status-decisions", decision).status_code == 403
 
 
+def test_report_clarification_history_is_scoped_and_does_not_publish_status(api):
+    client, factory, selected, actors = api
+    report = post(client, "/v1/field-reports", report_body())
+    assert report.status_code == 201
+    report_id = report.json()["field_report_id"]
+    path = f"/v1/field-reports/{report_id}/history"
+    reply_path = f"/v1/field-reports/{report_id}/clarifications"
+    selected[0] = actors["reviewer-north"]
+    review = post(client, f"/v1/reviews/{report_id}", {
+        "action": "needs_clarification", "note": "Please explain the blockage"
+    })
+    assert review.status_code == 201
+    assert client.get(path).json()["history"][0]["note"] == "Please explain the blockage"
+    selected[0] = actors["field_reporter-south"]
+    assert client.get(path).status_code == 403
+    assert post(client, reply_path, {"note": "wrong owner"}).status_code == 403
+    selected[0] = actors["reviewer-south"]
+    assert client.get(path).status_code == 403
+    selected[0] = actors["field_reporter-north"]
+    assert client.get(path).json()["can_respond"] is True
+    reply = post(client, reply_path, {"note": "Two trees across the carriageway"}, "reply")
+    assert reply.status_code == 201, reply.text
+    assert post(client, reply_path, {
+        "note": "Two trees across the carriageway"
+    }, "reply").json() == reply.json()
+    assert post(client, reply_path, {"note": "another reply"}).status_code == 409
+    history = client.get(path).json()
+    assert history["can_respond"] is False
+    assert [item["kind"] for item in history["history"]] == ["review", "clarification"]
+    assert history["history"][1]["actor_id"] == "field_reporter-north"
+    selected[0] = actors["reviewer-north"]
+    assert post(client, f"/v1/reviews/{report_id}", {
+        "action": "accept", "note": "Clarification resolved"
+    }).status_code == 201
+    assert len(client.get(path).json()["history"]) == 3
+    selected[0] = actors["field_reporter-north"]
+    duplicate = post(client, "/v1/field-reports", {
+        **report_body(), "client_sequence": 2
+    })
+    assert duplicate.status_code == 201
+    duplicate_id = duplicate.json()["field_report_id"]
+    selected[0] = actors["reviewer-north"]
+    merged = post(client, f"/v1/reviews/{duplicate_id}", {
+        "action": "merge", "note": "Same obstruction as accepted report",
+        "merge_into_evidence_id": report_id,
+    })
+    assert merged.status_code == 201, merged.text
+    assert client.get(f"/v1/field-reports/{duplicate_id}/history").json()["history"][0][
+        "merge_into_evidence_id"
+    ] == report_id
+    with factory() as session:
+        assert session.scalar(select(func.count()).select_from(FieldReport)) == 2
+        assert effective_status(session, "north")["status"] == "unknown"
+
+
 @pytest.mark.parametrize(
     "role",
     [

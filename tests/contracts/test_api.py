@@ -221,6 +221,8 @@ def test_openapi_contains_only_implemented_routes_and_matches_snapshot(api):
         "/v1/missions",
         "/v1/status-decisions",
         "/v1/field-reports",
+        "/v1/field-reports/{evidence_id}/history",
+        "/v1/field-reports/{evidence_id}/clarifications",
         "/v1/field-reports/{report_id}/media",
         "/v1/auth/session",
         "/health/ready",
