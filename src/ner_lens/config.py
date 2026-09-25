@@ -50,6 +50,13 @@ class Settings:
     source_refresh_seconds: int = 3600
     map_style_url: str = ""
     max_request_bytes: int = 3 * 1024 * 1024
+    media_s3_endpoint: str = ""
+    media_s3_bucket: str = ""
+    media_s3_region: str = "auto"
+    media_s3_access_key: str = field(default="", repr=False)
+    media_s3_secret_key: str = field(default="", repr=False)
+    clamd_host: str = ""
+    clamd_port: int = 3310
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -111,4 +118,11 @@ class Settings:
             source_refresh_seconds=positive("SOURCE_REFRESH_SECONDS", 3600),
             map_style_url=os.getenv("MAP_STYLE_URL", ""),
             max_request_bytes=positive("MAX_REQUEST_BYTES", 3 * 1024 * 1024),
+            media_s3_endpoint=os.getenv("MEDIA_S3_ENDPOINT", ""),
+            media_s3_bucket=os.getenv("MEDIA_S3_BUCKET", ""),
+            media_s3_region=os.getenv("MEDIA_S3_REGION", "auto"),
+            media_s3_access_key=os.getenv("MEDIA_S3_ACCESS_KEY", ""),
+            media_s3_secret_key=os.getenv("MEDIA_S3_SECRET_KEY", ""),
+            clamd_host=os.getenv("CLAMD_HOST", ""),
+            clamd_port=positive("CLAMD_PORT", 3310),
         )

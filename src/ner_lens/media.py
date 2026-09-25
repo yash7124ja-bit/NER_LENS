@@ -5,9 +5,12 @@ from __future__ import annotations
 import hashlib
 import io
 import re
+import socket
+import struct
 import warnings
 from datetime import datetime, timedelta, timezone
 from typing import Callable
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
@@ -32,6 +35,92 @@ FORMATS = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}
 Scanner = Callable[[bytes], str]
 
 
+class ClamdScanner:
+    """Scan bytes with a trusted private clamd INSTREAM service."""
+
+    def __init__(self, host: str, port: int = 3310):
+        self.host, self.port = host, port
+
+    def __call__(self, raw: bytes) -> str:
+        with socket.create_connection((self.host, self.port), timeout=10) as connection:
+            connection.settimeout(10)
+            connection.sendall(b"zINSTREAM\0")
+            for offset in range(0, len(raw), 64 * 1024):
+                chunk = raw[offset : offset + 64 * 1024]
+                connection.sendall(struct.pack("!I", len(chunk)) + chunk)
+            connection.sendall(b"\0\0\0\0")
+            reply = bytearray()
+            while len(reply) < 1024:
+                part = connection.recv(1024 - len(reply))
+                if not part:
+                    break
+                reply.extend(part)
+                if b"\0" in part or b"\n" in part:
+                    break
+            verdict = bytes(reply).split(b"\0", 1)[0].split(b"\n", 1)[0]
+        if verdict == b"stream: OK":
+            return "clean"
+        if verdict.startswith(b"stream: ") and verdict.endswith(b" FOUND"):
+            return "rejected"
+        raise ValueError("scanner_verdict_unrecognized")
+
+
+class S3MediaStorage:
+    """Private S3-compatible object store; no public ACL or signed client URL."""
+
+    def __init__(self, endpoint: str, bucket: str, region: str, access_key: str, secret_key: str):
+        parsed = urlsplit(endpoint)
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+            or not all((bucket, access_key, secret_key))
+        ):
+            raise ValueError("private_media_storage_configuration_invalid")
+        import boto3
+        from botocore.config import Config
+
+        self.bucket = bucket
+        self.client = boto3.client(
+            "s3",
+            endpoint_url=endpoint,
+            region_name=region,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            config=Config(connect_timeout=5, read_timeout=10, retries={"max_attempts": 2}),
+        )
+
+    def put(self, key: str, raw: bytes, derivative: bytes, content_type: str) -> None:
+        try:
+            for suffix, body, media_type in (
+                ("raw", raw, content_type),
+                ("derivative", derivative, "image/jpeg"),
+            ):
+                self.client.put_object(
+                    Bucket=self.bucket,
+                    Key=f"{key}/{suffix}",
+                    Body=body,
+                    ContentType=media_type,
+                )
+        except Exception:
+            for suffix in ("raw", "derivative"):
+                try:
+                    self.client.delete_object(Bucket=self.bucket, Key=f"{key}/{suffix}")
+                except Exception:
+                    pass  # Bucket lifecycle removes private orphans after failed cleanup.
+            raise
+
+    def get(self, key: str, suffix: str) -> bytes:
+        if suffix not in {"raw", "derivative"}:
+            raise ValueError("invalid_media_object_kind")
+        response = self.client.get_object(Bucket=self.bucket, Key=f"{key}/{suffix}")
+        with response["Body"] as body:
+            return body.read(MAX_UPLOAD_BYTES + 1)
+
+
 class MediaObject(Base):
     __tablename__ = "media_object"
     __table_args__ = (UniqueConstraint("field_report_id", "slot", name="uq_report_media_slot"),)
@@ -49,6 +138,8 @@ class MediaObject(Base):
     scanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     raw: Mapped[bytes | None] = mapped_column(LargeBinary)
     derivative: Mapped[bytes | None] = mapped_column(LargeBinary)
+    storage_key: Mapped[str | None] = mapped_column(String(96))
+    derivative_sha256: Mapped[str | None] = mapped_column(String(64))
     upload_response: Mapped[dict | None] = mapped_column(JSON)
 
 
@@ -146,7 +237,7 @@ def audit(session, row, action, *, actor_id=None, reason=None):
     )
 
 
-def scan_pending(factory, scanner: Scanner, *, limit=20):
+def scan_pending(factory, scanner: Scanner, *, storage: S3MediaStorage | None = None, limit=20):
     """Trusted worker hook. Never expose scanner selection or verdicts as request inputs."""
     if scanner is None:
         raise ValueError("trusted_scanner_required")
@@ -161,7 +252,15 @@ def scan_pending(factory, scanner: Scanner, *, limit=20):
             .limit(min(100, max(1, limit)))
         ).all()
         for row in rows:
-            row.scan_state, row.scan_reason = scan_result(scanner, row.raw)
+            try:
+                raw = (
+                    storage.get(row.storage_key, "raw") if row.storage_key and storage else row.raw
+                )
+                if raw is None or hashlib.sha256(raw).hexdigest() != row.sha256:
+                    raise ValueError("quarantine_object_missing_or_corrupt")
+                row.scan_state, row.scan_reason = scan_result(scanner, raw)
+            except Exception:
+                row.scan_state, row.scan_reason = "error", "quarantine_read_failed"
             row.scanned_at = now_utc()
             audit(session, row, "media.scanned")
             count += 1
@@ -169,7 +268,14 @@ def scan_pending(factory, scanner: Scanner, *, limit=20):
     return count
 
 
-def build_router(factory, current_actor, scanner: Scanner | None = None):
+def build_router(
+    factory,
+    current_actor,
+    scanner: Scanner | None = None,
+    storage: S3MediaStorage | None = None,
+    *,
+    require_services: bool = False,
+):
     router = APIRouter(tags=["media"])
 
     def audit_authorization(event):
@@ -213,6 +319,8 @@ def build_router(factory, current_actor, scanner: Scanner | None = None):
         content_type: str = Header(),
         content_length: int = Header(),
     ):
+        if require_services and (scanner is None or storage is None):
+            raise HTTPException(503, "media_scanner_or_storage_unavailable")
         if not 0 <= slot < MAX_SLOTS:
             raise HTTPException(422, "media_slot_out_of_range")
         if content_type not in FORMATS:
@@ -303,12 +411,24 @@ def build_router(factory, current_actor, scanner: Scanner | None = None):
             set_incomplete(media_id, str(exc))
             raise HTTPException(422, str(exc)) from exc
         scan_state, scan_reason = await run_in_threadpool(scan_result, scanner, raw)
+        if require_services and scan_state == "error":
+            set_incomplete(media_id, scan_reason)
+            raise HTTPException(503, "media_scanner_unavailable")
+        storage_key = f"media/{media_id}/{uuid4()}" if storage else None
+        if storage:
+            try:
+                await run_in_threadpool(storage.put, storage_key, raw, derivative, content_type)
+            except Exception as exc:
+                set_incomplete(media_id, "private_storage_failed")
+                raise HTTPException(503, "private_media_storage_unavailable") from exc
         with factory() as session:
             access(session, report_id, actor, upload=True)
             row = session.get(MediaObject, media_id)
             if row.upload_response:
                 return row.upload_response
-            row.raw, row.derivative = raw, derivative
+            row.raw, row.derivative = (None, None) if storage else (raw, derivative)
+            row.storage_key = storage_key
+            row.derivative_sha256 = hashlib.sha256(derivative).hexdigest()
             row.upload_state, row.scan_state, row.scan_reason = "received", scan_state, scan_reason
             row.scanned_at = now_utc() if scanner is not None else None
             response = {**metadata(row), "request_id": str(uuid4())}
@@ -365,12 +485,26 @@ def build_router(factory, current_actor, scanner: Scanner | None = None):
             )
             if not row:
                 raise HTTPException(404, "media_not_found")
-            if row.upload_state != "received" or row.scan_state != "clean" or not row.derivative:
+            if row.upload_state != "received" or row.scan_state != "clean":
                 raise HTTPException(409, "media_not_cleared_by_scanner")
+            try:
+                body = (
+                    storage.get(row.storage_key, "derivative")
+                    if row.storage_key and storage
+                    else row.derivative
+                )
+            except Exception as exc:
+                raise HTTPException(503, "private_media_storage_unavailable") from exc
+            if (
+                not body
+                or row.derivative_sha256
+                and hashlib.sha256(body).hexdigest() != row.derivative_sha256
+            ):
+                raise HTTPException(503, "private_media_storage_unavailable")
             audit(session, row, "media.derivative_read", actor_id=actor.actor_id)
             session.commit()
             return Response(
-                row.derivative,
+                body,
                 media_type="image/jpeg",
                 headers={
                     "Cache-Control": "private, no-store",

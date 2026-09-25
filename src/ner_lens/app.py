@@ -5,6 +5,7 @@ import hmac
 import json
 import logging
 import os
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
@@ -39,6 +40,7 @@ from ner_lens.db import build_session_factory
 from ner_lens.identity.accounts import InvalidCredentials, RateLimited, login, logout, profile
 from ner_lens.identity.replay import authenticate
 from ner_lens.identity.service import AuthContext
+from ner_lens.media import MAX_UPLOAD_BYTES
 from ner_lens.operations import build_router as operations_router
 from ner_lens.routing import build_router as routing_router
 from ner_lens.sources import health as source_health
@@ -118,9 +120,15 @@ def create_app(
                 return error(request, 403, "forbidden", "Request origin is not permitted")
             length = 0
             chunks = []
+            limit = (
+                MAX_UPLOAD_BYTES
+                if request.method == "PUT"
+                and re.fullmatch(r"/v1/field-reports/[^/]+/media/[0-3]", request.url.path)
+                else settings.max_request_bytes
+            )
             async for chunk in request.stream():
                 length += len(chunk)
-                if length > settings.max_request_bytes:
+                if length > limit:
                     return error(request, 413, "payload_too_large", "Request exceeds upload limit")
                 chunks.append(chunk)
             request._body = b"".join(chunks)
@@ -412,10 +420,41 @@ def create_app(
             raise HTTPException(403) from exc
 
     from ner_lens.administration import build_router as administration_router
+    from ner_lens.media import ClamdScanner, S3MediaStorage
     from ner_lens.media import build_router as media_router
 
+    media_storage = (
+        S3MediaStorage(
+            settings.media_s3_endpoint,
+            settings.media_s3_bucket,
+            settings.media_s3_region,
+            settings.media_s3_access_key,
+            settings.media_s3_secret_key,
+        )
+        if any(
+            (
+                settings.media_s3_endpoint,
+                settings.media_s3_bucket,
+                settings.media_s3_access_key,
+                settings.media_s3_secret_key,
+            )
+        )
+        else None
+    )
+    media_scanner = (
+        ClamdScanner(settings.clamd_host, settings.clamd_port) if settings.clamd_host else None
+    )
+
     app.include_router(administration_router(factory, current_actor, settings))
-    app.include_router(media_router(factory, current_actor))
+    app.include_router(
+        media_router(
+            factory,
+            current_actor,
+            media_scanner,
+            media_storage,
+            require_services=settings.database_url.startswith("postgresql"),
+        )
+    )
     app.include_router(operations_router(factory, current_actor))
     app.include_router(routing_router(factory, current_actor, settings))
     return app

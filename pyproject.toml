@@ -9,6 +9,7 @@ description = "NER LENS replay-first logistics decision-support backend"
 requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.18,<2",
+  "boto3>=1.35,<2",
   "cryptography>=45,<47",
   "fastapi>=0.141.1,<0.142",
   "geoalchemy2>=0.18,<1",
