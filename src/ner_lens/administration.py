@@ -81,6 +81,40 @@ def ingest_stories(factory, records, *, overwrite=False):
 def build_router(factory, current_actor, settings):
     router = APIRouter(tags=["administration"])
 
+    @router.get("/v1/admin/corridors")
+    def admin_corridors(actor=Depends(current_actor)):
+        with factory() as session:
+            rows = session.scalars(
+                select(CorridorVersion)
+                .where(
+                    CorridorVersion.status == "active",
+                    CorridorVersion.jurisdiction_id.in_(actor.jurisdiction_ids),
+                )
+                .order_by(CorridorVersion.name)
+            ).all()
+            auth = AuthorizationService(session_factory=factory)
+            permitted = [
+                row for row in rows
+                if auth.authorize(
+                    actor, "manage_users", ResourceScope(jurisdiction_id=row.jurisdiction_id)
+                ).allowed
+            ]
+            return {
+                "corridors": [
+                    {
+                        "corridor_id": row.id,
+                        "corridor_version_id": row.id,
+                        "name": row.name or row.corridor_key,
+                        "graph_version": row.graph_version,
+                        "data_mode": "administration",
+                    }
+                    for row in permitted
+                ],
+                "data_mode": "administration",
+                "provenance": {},
+                "limitations": [],
+            }
+
     def scope(session, actor, corridor_id, action="manage_users"):
         corridor = session.get(CorridorVersion, corridor_id)
         if not corridor:

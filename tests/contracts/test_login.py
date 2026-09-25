@@ -88,6 +88,20 @@ def test_cookie_login_restore_scope_and_logout(account_api):
     assert client.get("/v1/corridors").status_code == 401
 
 
+def test_admin_only_account_can_find_its_scope_without_road_status(account_api):
+    client, factory, _, account = account_api
+    email, password = f"{uuid4().hex}@example.test", secrets.token_urlsafe(24)
+    provision_account(factory, email, password, "Admin", ("system_admin",), (account["scope"],))
+    login = client.post("/v1/auth/login", json={"email": email, "password": password})
+    assert login.status_code == 200
+    assert client.get("/v1/corridors").status_code == 403
+    response = client.get("/v1/admin/corridors")
+    assert response.status_code == 200
+    assert [row["corridor_id"] for row in response.json()["corridors"]] == [account["corridor_id"]]
+    users = client.get("/v1/admin/users", params={"corridor_id": account["corridor_id"]})
+    assert users.status_code == 200
+
+
 def test_wrong_or_unknown_credentials_are_generic_and_throttled(account_api):
     client, _, settings, account = account_api
     errors = []

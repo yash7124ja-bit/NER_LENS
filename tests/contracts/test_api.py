@@ -193,6 +193,7 @@ def test_openapi_contains_only_implemented_routes_and_matches_snapshot(api):
         "/v1/admin/user-stories/reindex",
         "/health/sources",
         "/v1/admin/users",
+        "/v1/admin/corridors",
         "/v1/corridors/{corridor_id}/capabilities",
         "/v1/auth/logout",
         "/v1/routes/compare",
@@ -334,6 +335,7 @@ def test_super_admin_scope_user_creation_and_story_ingestion(api):
     client, factory, _ = api
     corridor = client.get("/v1/corridors").json()["corridors"][0]["corridor_id"]
     assert client.get("/v1/admin/users", params={"corridor_id": corridor}).status_code == 403
+    assert client.get("/v1/admin/corridors").json()["corridors"] == []
     with factory.begin() as session:
         assignment = session.scalar(select(RoleAssignment).where(RoleAssignment.actor_id == VIEWER))
         session.add(
@@ -344,6 +346,8 @@ def test_super_admin_scope_user_creation_and_story_ingestion(api):
                 jurisdiction_id=assignment.jurisdiction_id,
             )
         )
+    rows = client.get("/v1/admin/corridors").json()["corridors"]
+    assert [row["corridor_id"] for row in rows] == [corridor]
     body = {
         "corridor_id": corridor,
         "email": "new-operator@example.test",
