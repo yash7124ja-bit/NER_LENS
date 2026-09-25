@@ -70,7 +70,6 @@ class MissionImpactRecord(Base):
 class RouteChangeApproval(Base):
     __tablename__ = "route_change_approval"
     __table_args__ = (
-        UniqueConstraint("impact_id", name="uq_route_change_impact"),
         UniqueConstraint("actor_id", "idempotency_key", name="uq_route_change_actor_key"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -83,6 +82,43 @@ class RouteChangeApproval(Base):
     request_hash: Mapped[str] = mapped_column(String(64))
     approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     payload: Mapped[dict] = mapped_column(JSON)
+
+
+class RouteAlert(Base):
+    __tablename__ = "route_alert"
+    __table_args__ = (UniqueConstraint("approval_id", name="uq_route_alert_approval"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    approval_id: Mapped[str] = mapped_column(ForeignKey("route_change_approval.id"))
+    mission_id: Mapped[str] = mapped_column(ForeignKey("mission.id"), index=True)
+    recipient_actor_id: Mapped[str] = mapped_column(ForeignKey("actor.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict] = mapped_column(JSON)
+
+
+class AlertDeliveryAttempt(Base):
+    __tablename__ = "alert_delivery_attempt"
+    __table_args__ = (UniqueConstraint("alert_id", "channel", name="uq_alert_delivery_channel"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    alert_id: Mapped[str] = mapped_column(ForeignKey("route_alert.id"), index=True)
+    channel: Mapped[str] = mapped_column(String(24))
+    outcome: Mapped[str] = mapped_column(String(24))
+    attempted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class AlertAcknowledgment(Base):
+    __tablename__ = "alert_acknowledgment"
+    __table_args__ = (
+        UniqueConstraint("alert_id", name="uq_alert_acknowledgment"),
+        UniqueConstraint("actor_id", "idempotency_key", name="uq_alert_ack_actor_key"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    alert_id: Mapped[str] = mapped_column(ForeignKey("route_alert.id"))
+    actor_id: Mapped[str] = mapped_column(ForeignKey("actor.id"))
+    idempotency_key: Mapped[str] = mapped_column(String(255))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    decision: Mapped[str] = mapped_column(String(16))
+    acknowledged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    selection_id: Mapped[str | None] = mapped_column(ForeignKey("route_selection.id"))
 
 
 class RouteRequest(BaseModel):
@@ -119,6 +155,11 @@ class RouteChangeInput(BaseModel):
     reason: str = Field(min_length=10, max_length=1000)
 
 
+class AlertAcknowledgmentInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    decision: str = Field(pattern="^(accept|decline)$")
+
+
 def current_impact(session, mission: Mission, impact_id: str, now: datetime):
     impact = session.get(MissionImpactRecord, impact_id)
     if (
@@ -151,6 +192,45 @@ def current_impact(session, mission: Mission, impact_id: str, now: datetime):
     ):
         raise HTTPException(409, "authority_decision_changed")
     return impact, selected
+
+
+def current_route_candidate(session, mission, impact, route, expires_at, now):
+    if now >= expires_at:
+        raise HTTPException(409, "source_snapshot_expired")
+    candidate_segments = set(route.get("segment_ids", []))
+    corridor_segments = set(session.scalars(select(RoadSegment.id).where(
+        RoadSegment.corridor_version_id == mission.corridor_id
+    )).all())
+    if (not candidate_segments or not candidate_segments <= corridor_segments
+            or impact.payload["segment_id"] in candidate_segments):
+        raise HTTPException(409, "candidate_coverage_unverified")
+    for segment_id in candidate_segments:
+        status = effective_status(session, segment_id, now,
+                                  vehicle_profile=mission.payload["vehicle_profile"])
+        expected = route.get("decision_snapshots", {}).get(segment_id)
+        if (expected is None or status.get("decision_id") != expected.get("decision_id")
+                or status["freshness"] != expected.get("freshness")
+                or status["status"] in ("closed", "restricted")):
+            raise HTTPException(409, "candidate_decision_changed")
+
+
+def alert_view(session, alert):
+    delivery = session.scalar(select(AlertDeliveryAttempt).where(
+        AlertDeliveryAttempt.alert_id == alert.id
+    ))
+    acknowledgment = session.scalar(select(AlertAcknowledgment).where(
+        AlertAcknowledgment.alert_id == alert.id
+    ))
+    return {
+        **alert.payload,
+        "delivery_state": "delivered_in_app" if delivery else "queued_in_app",
+        "delivered_at": utc_datetime(delivery.attempted_at).isoformat() if delivery else None,
+        "acknowledgment": None if acknowledgment is None else {
+            "decision": acknowledgment.decision,
+            "acknowledged_at": utc_datetime(acknowledgment.acknowledged_at).isoformat(),
+            "selection_id": acknowledgment.selection_id,
+        },
+    }
 
 
 def build_router(factory, current_actor, settings):
@@ -418,10 +498,12 @@ def build_router(factory, current_actor, settings):
     def get_selection(mission_id: str, actor=Depends(current_actor)):
         with factory() as session:
             mission = session.get(Mission, mission_id)
-            if not mission or mission.actor_id != actor.actor_id:
+            if not mission or actor.actor_id not in (mission.actor_id, mission.driver_actor_id):
                 raise HTTPException(403)
             decision = AuthorizationService(session_factory=factory).authorize(
-                actor, "view_mission", ResourceScope(jurisdiction_id=mission.jurisdiction_id)
+                actor,
+                "view_mission" if mission.actor_id == actor.actor_id else "view_assigned_mission",
+                ResourceScope(jurisdiction_id=mission.jurisdiction_id),
             )
             if not decision.allowed:
                 raise HTTPException(403)
@@ -668,9 +750,12 @@ def build_router(factory, current_actor, settings):
                 return old.payload
             now = datetime.now(timezone.utc)
             impact, selected = current_impact(session, mission, body.impact_id, now)
-            if session.scalar(
-                select(RouteChangeApproval).where(RouteChangeApproval.impact_id == impact.id)
-            ):
+            if mission.driver_actor_id is None:
+                raise HTTPException(409, "assigned_driver_required")
+            previous = session.scalar(select(RouteChangeApproval).where(
+                RouteChangeApproval.impact_id == impact.id
+            ).order_by(RouteChangeApproval.approved_at.desc()))
+            if previous and now < datetime.fromisoformat(previous.payload["expires_at"]):
                 raise HTTPException(409, "impact_already_approved")
             comparison = session.get(RouteComparisonRecord, body.comparison_id)
             if (
@@ -696,34 +781,7 @@ def build_router(factory, current_actor, settings):
             expires = datetime.fromisoformat(result["retrieved_at"]) + timedelta(
                 seconds=settings.source_refresh_seconds
             )
-            if now >= expires:
-                raise HTTPException(409, "source_snapshot_expired")
-            candidate_segments = set(route.get("segment_ids", []))
-            corridor_segments = set(
-                session.scalars(
-                    select(RoadSegment.id).where(
-                        RoadSegment.corridor_version_id == mission.corridor_id
-                    )
-                ).all()
-            )
-            if (
-                not candidate_segments
-                or not candidate_segments <= corridor_segments
-                or impact.payload["segment_id"] in candidate_segments
-            ):
-                raise HTTPException(409, "candidate_coverage_unverified")
-            for segment_id in candidate_segments:
-                status = effective_status(
-                    session, segment_id, now, vehicle_profile=mission.payload["vehicle_profile"]
-                )
-                expected = route.get("decision_snapshots", {}).get(segment_id)
-                if (
-                    expected is None
-                    or status.get("decision_id") != expected.get("decision_id")
-                    or status["freshness"] != expected.get("freshness")
-                    or status["status"] in ("closed", "restricted")
-                ):
-                    raise HTTPException(409, "candidate_decision_changed")
+            current_route_candidate(session, mission, impact, route, expires, now)
             approval_id = str(uuid4())
             payload = {
                 "approval_id": approval_id,
@@ -758,6 +816,22 @@ def build_router(factory, current_actor, settings):
                     payload=payload,
                 )
             )
+            alert_id = str(uuid4())
+            session.add(RouteAlert(
+                id=alert_id, approval_id=approval_id, mission_id=mission_id,
+                recipient_actor_id=mission.driver_actor_id, created_at=now,
+                payload={
+                    "alert_id": alert_id, "approval_id": approval_id, "mission_id": mission_id,
+                    "kind": "route_change", "language": "en",
+                    "template_key": "route_change_replay_en_v1",
+                    "message": (
+                        "A dispatcher approved a candidate route change. Review before accepting; "
+                        "this replay route is not road or vehicle clearance."
+                    ),
+                    "reason": body.reason.strip(), "route_id": route["route_id"],
+                    "created_at": now.isoformat(), "expires_at": expires.isoformat(),
+                },
+            ))
             session.add(
                 AuditEvent(
                     id=str(uuid4()),
@@ -778,5 +852,126 @@ def build_router(factory, current_actor, settings):
                 session.rollback()
                 raise HTTPException(409, "approval_conflict") from None
             return payload
+
+    @router.get("/v1/alerts")
+    def list_alerts(request: Request, actor=Depends(current_actor)):
+        with factory() as session:
+            alerts = session.scalars(select(RouteAlert).where(
+                RouteAlert.recipient_actor_id == actor.actor_id
+            ).order_by(RouteAlert.created_at.desc())).all()
+            visible = []
+            for alert in alerts:
+                mission = session.get(Mission, alert.mission_id)
+                if mission is None or mission.driver_actor_id != actor.actor_id:
+                    continue
+                access = AuthorizationService(session_factory=factory).authorize(
+                    actor, "view_assigned_mission",
+                    ResourceScope(jurisdiction_id=mission.jurisdiction_id),
+                    request_id=request.state.request_id,
+                )
+                if access.allowed:
+                    visible.append(alert)
+            for alert in visible:
+                if not session.scalar(select(AlertDeliveryAttempt).where(
+                    AlertDeliveryAttempt.alert_id == alert.id
+                )):
+                    session.add(AlertDeliveryAttempt(
+                        id=str(uuid4()), alert_id=alert.id, channel="in_app",
+                        outcome="delivered", attempted_at=datetime.now(timezone.utc),
+                    ))
+            try:
+                session.commit()
+            except IntegrityError:
+                session.rollback()  # Another read recorded the same delivery first.
+            return {"alerts": [alert_view(session, alert) for alert in visible]}
+
+    @router.get("/v1/missions/{mission_id}/route-alert")
+    def get_mission_alert(mission_id: str, request: Request, actor=Depends(current_actor)):
+        with factory() as session:
+            mission = session.get(Mission, mission_id)
+            if mission is None or mission.actor_id != actor.actor_id:
+                raise HTTPException(403)
+            access = AuthorizationService(session_factory=factory).authorize(
+                actor, "view_mission", ResourceScope(jurisdiction_id=mission.jurisdiction_id),
+                request_id=request.state.request_id,
+            )
+            if not access.allowed:
+                raise HTTPException(403)
+            alert = session.scalar(select(RouteAlert).where(
+                RouteAlert.mission_id == mission_id
+            ).order_by(RouteAlert.created_at.desc(), RouteAlert.id.desc()))
+            return {"alert": None if alert is None else alert_view(session, alert)}
+
+    @router.post("/v1/alerts/{alert_id}/acknowledge", status_code=201)
+    def acknowledge_alert(alert_id: str, body: AlertAcknowledgmentInput, request: Request,
+                          actor=Depends(current_actor), idempotency_key: str = Header()):
+        try:
+            validate_idempotency_key(idempotency_key)
+        except ValueError:
+            raise HTTPException(422, "invalid_idempotency_key") from None
+        digest = canonical_request_hash({"alert_id": alert_id, **body.model_dump()})
+        with factory() as session:
+            alert = session.get(RouteAlert, alert_id)
+            if alert is None or alert.recipient_actor_id != actor.actor_id:
+                raise HTTPException(403)
+            mission = session.get(Mission, alert.mission_id)
+            if mission is None or mission.driver_actor_id != actor.actor_id:
+                raise HTTPException(403)
+            access = AuthorizationService(session_factory=factory).authorize(
+                actor, "view_assigned_mission",
+                ResourceScope(jurisdiction_id=mission.jurisdiction_id),
+                request_id=request.state.request_id,
+            )
+            if not access.allowed:
+                raise HTTPException(403)
+            old = session.scalar(select(AlertAcknowledgment).where(
+                AlertAcknowledgment.actor_id == actor.actor_id,
+                AlertAcknowledgment.idempotency_key == idempotency_key,
+            ))
+            if old:
+                if old.request_hash != digest:
+                    raise HTTPException(409, "idempotency_conflict")
+                return {"alert_id": old.alert_id, "decision": old.decision,
+                        "selection_id": old.selection_id}
+            if session.scalar(select(AlertAcknowledgment).where(
+                AlertAcknowledgment.alert_id == alert_id
+            )):
+                raise HTTPException(409, "alert_already_acknowledged")
+            now = datetime.now(timezone.utc)
+            approval = session.get(RouteChangeApproval, alert.approval_id)
+            selection = None
+            if body.decision == "accept":
+                impact, _ = current_impact(session, mission, approval.impact_id, now)
+                route = approval.payload["route_snapshot"]
+                expires = datetime.fromisoformat(approval.payload["expires_at"])
+                current_route_candidate(session, mission, impact, route, expires, now)
+                selection = RouteSelectionRecord(
+                    id=str(uuid4()), mission_id=mission.id, comparison_id=approval.comparison_id,
+                    route_id=approval.route_id, actor_id=actor.actor_id,
+                    idempotency_key=str(uuid4()), request_hash=digest,
+                    selected_at=now, expires_at=expires,
+                )
+                session.add(selection)
+                impact.state, impact.resolved_at = "resolved", now
+            session.add(AlertAcknowledgment(
+                id=str(uuid4()), alert_id=alert_id, actor_id=actor.actor_id,
+                idempotency_key=idempotency_key, request_hash=digest,
+                decision=body.decision, acknowledged_at=now,
+                selection_id=selection.id if selection else None,
+            ))
+            session.add(AuditEvent(
+                id=str(uuid4()), actor_id=actor.actor_id,
+                action=f"alerts.route_change_{body.decision}", target_type="route_alert",
+                target_id=alert_id, request_id=request.state.request_id,
+                jurisdiction_id=mission.jurisdiction_id, outcome="allowed",
+                reason="replay_baseline_only", after_hash=digest,
+            ))
+            try:
+                session.commit()
+            except IntegrityError:
+                session.rollback()
+                raise HTTPException(409, "acknowledgment_conflict") from None
+            return {"alert_id": alert_id, "decision": body.decision,
+                    "selection_id": selection.id if selection else None}
 
     return router

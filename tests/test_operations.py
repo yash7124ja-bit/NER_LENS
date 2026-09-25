@@ -317,7 +317,10 @@ def test_route_change_approval_is_scoped_idempotent_and_does_not_switch_driver_r
     now = datetime.now(timezone.utc)
     from ner_lens.operations import StatusDecision
     from ner_lens.routing import (
+        AlertAcknowledgment,
+        AlertDeliveryAttempt,
         MissionImpactRecord,
+        RouteAlert,
         RouteChangeApproval,
         RouteComparisonRecord,
         RouteSelectionRecord,
@@ -346,6 +349,7 @@ def test_route_change_approval_is_scoped_idempotent_and_does_not_switch_driver_r
                 corridor_id="north",
                 jurisdiction_id="north",
                 graph_version_id="test-v1",
+                driver_actor_id="driver-north",
                 state="active",
                 created_at=now,
                 payload={
@@ -492,9 +496,69 @@ def test_route_change_approval_is_scoped_idempotent_and_does_not_switch_driver_r
         assert session.query(RouteChangeApproval).count() == 1
     saved = client.get(f"/v1/missions/{mid}/route-selection").json()["selection"]
     assert saved["route_id"] == old_route
+    first_alert = client.get(f"/v1/missions/{mid}/route-alert").json()["alert"]
+    fresh_comparison_id = str(uuid4())
     with factory.begin() as session:
+        approval = session.query(RouteChangeApproval).one()
+        approval.payload = {
+            **approval.payload, "expires_at": (now - timedelta(seconds=1)).isoformat()
+        }
+        prior_comparison = session.get(RouteComparisonRecord, comparison_id)
+        session.add(RouteComparisonRecord(
+            id=fresh_comparison_id, actor_id="dispatcher-north", corridor_id="north",
+            graph_version="test-v1", idempotency_key="fresh-compare", request_hash="f" * 64,
+            created_at=now, payload={**prior_comparison.payload, "retrieved_at": now.isoformat()},
+        ))
+    fresh_body = {**body, "comparison_id": fresh_comparison_id}
+    renewed = post(client, path, fresh_body, "approve-fresh")
+    assert renewed.status_code == 201, renewed.text
+    alert = client.get(f"/v1/missions/{mid}/route-alert").json()["alert"]
+    assert alert["alert_id"] != first_alert["alert_id"]
+    assert alert["delivery_state"] == "queued_in_app"
+    selected[0] = actors["driver-south"]
+    assert client.post(f"/v1/alerts/{alert['alert_id']}/acknowledge", json={"decision": "accept"},
+                       headers={"Idempotency-Key": "wrong-driver"}).status_code == 403
+    selected[0] = actors["driver-north"]
+    inbox = client.get("/v1/alerts").json()["alerts"]
+    assert inbox[0]["alert_id"] == alert["alert_id"]
+    assert inbox[0]["delivery_state"] == "delivered_in_app"
+    assert len(client.get("/v1/alerts").json()["alerts"]) == 2
+    ack_path = f"/v1/alerts/{alert['alert_id']}/acknowledge"
+    assert post(client, f"/v1/alerts/{first_alert['alert_id']}/acknowledge",
+                {"decision": "accept"}, "stale-prior").status_code == 409
+    with factory.begin() as session:
+        approval = session.get(RouteChangeApproval, renewed.json()["approval_id"])
+        original_payload = approval.payload
+        approval.payload = {
+            **original_payload, "expires_at": (now - timedelta(seconds=1)).isoformat()
+        }
+    assert post(client, ack_path, {"decision": "accept"}, "stale-accept").status_code == 409
+    with factory.begin() as session:
+        session.get(RouteChangeApproval, renewed.json()["approval_id"]).payload = original_payload
+    acknowledged = post(client, ack_path, {"decision": "accept"}, "driver-accept")
+    assert acknowledged.status_code == 201, acknowledged.text
+    assert acknowledged.json()["selection_id"]
+    assert (
+        post(client, ack_path, {"decision": "accept"}, "driver-accept").json()
+        == acknowledged.json()
+    )
+    assert post(client, ack_path, {"decision": "decline"}, "driver-accept").status_code == 409
+    assert post(client, ack_path, {"decision": "decline"}, "driver-decline").status_code == 409
+    driver_selection = client.get(f"/v1/missions/{mid}/route-selection").json()["selection"]
+    assert driver_selection["route_id"] == alternate_route
+    with factory.begin() as session:
+        assert session.query(RouteAlert).count() == 2
+        assert session.query(AlertDeliveryAttempt).count() == 2
+        assert session.query(AlertAcknowledgment).count() == 1
         session.get(StatusDecision, decision_id).valid_until = now - timedelta(seconds=1)
+    selected[0] = actors["dispatcher-north"]
     assert post(client, path, body, "approval-after-expiry").status_code == 409
+    # The fixture downgrades this disposable database through the earlier unique-impact schema.
+    with factory.begin() as session:
+        session.query(AlertAcknowledgment).delete()
+        session.query(AlertDeliveryAttempt).delete()
+        session.query(RouteAlert).delete()
+        session.delete(session.get(RouteChangeApproval, renewed.json()["approval_id"]))
 
 
 def test_report_review_status_expiry_and_audit(api):

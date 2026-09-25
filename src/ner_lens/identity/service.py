@@ -43,7 +43,7 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
     "dispatcher": frozenset(
         {"create_mission", "compare_routes", "view_mission", "read_corridor_state"}
     ),
-    "driver": frozenset({"view_assigned_mission", "submit_gps"}),
+    "driver": frozenset({"view_assigned_mission", "submit_gps", "read_corridor_state"}),
     "district_officer": frozenset(
         {"publish_status", "expire_status", "approve_alert", "read_corridor_state"}
     ),
