@@ -335,6 +335,53 @@ def test_report_clarification_history_is_scoped_and_does_not_publish_status(api)
         assert effective_status(session, "north")["status"] == "unknown"
 
 
+def test_authority_order_reference_and_decision_history(api):
+    client, factory, selected, actors = api
+    selected[0] = actors["district_officer-north"]
+    now = datetime.now(timezone.utc)
+    body = {
+        "segment_id": "north", "status": "closed", "vehicle_scope": ["rigid_truck"],
+        "direction": "both", "reason_code": "authority_order", "evidence_ids": [],
+        "effective_at": now.isoformat(), "valid_until": (now + timedelta(hours=1)).isoformat(),
+        "note": "Road authority closure",
+    }
+    assert post(client, "/v1/status-decisions", body).status_code == 422
+    assert post(client, "/v1/status-decisions", {
+        **body, "vehicle_scope": ["all", "rigid_truck"], "order_reference": "ORDER-1"
+    }).status_code == 422
+    first = post(client, "/v1/status-decisions", {
+        **body, "order_reference": "ORDER-1"
+    })
+    assert first.status_code == 201, first.text
+    second = post(client, "/v1/status-decisions", {
+        **body, "status": "restricted", "order_reference": "ORDER-2"
+    })
+    assert second.status_code == 201, second.text
+    assert second.json()["supersedes_decision_id"] == first.json()["decision_id"]
+    assert second.json()["audit_event_id"]
+    history_path = "/v1/status-decisions/history?segment_id=north"
+    decisions = client.get(history_path).json()["decisions"]
+    assert len(decisions) == 2
+    assert decisions[0]["order_reference"] == "ORDER-2"
+    assert decisions[1]["order_reference"] == "ORDER-1"
+    assert all(row["actor_id"] == "district_officer-north" for row in decisions)
+    selected[0] = actors["regional_viewer-south"]
+    assert client.get(history_path).status_code == 403
+    selected[0] = actors["regional_viewer-north"]
+    assert client.get(history_path).status_code == 200
+    with factory.begin() as session:
+        from ner_lens.operations import StatusDecision
+        earlier = session.get(StatusDecision, first.json()["decision_id"])
+        earlier.effective_at = now - timedelta(minutes=3)
+        decision = session.get(StatusDecision, second.json()["decision_id"])
+        decision.effective_at = now - timedelta(minutes=2)
+        decision.valid_until = now - timedelta(seconds=1)
+    assert client.get(history_path).json()["decisions"][0]["expired"] is True
+    assert client.get("/v1/status-decisions?segment_id=north&vehicle_profile=rigid_truck").json()[
+        "status"
+    ] == "unknown"
+
+
 @pytest.mark.parametrize(
     "role",
     [

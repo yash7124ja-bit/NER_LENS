@@ -210,12 +210,15 @@ class ClarificationInput(Input):
 class StatusInput(Input):
     segment_id: str
     status: Literal["open", "restricted", "closed", "unknown"]
-    vehicle_scope: list[str] = Field(min_length=1, max_length=20)
+    vehicle_scope: list[Literal["all", "light_goods", "rigid_truck", "emergency"]] = Field(
+        min_length=1, max_length=4
+    )
     direction: Literal["forward", "reverse", "both"]
     reason_code: Literal[
         "authority_order", "flooded", "landslide", "damage", "restriction", "reopened", "expiry"
     ]
     evidence_ids: list[str] = Field(default_factory=list, max_length=100)
+    order_reference: str | None = Field(default=None, min_length=1, max_length=128)
     effective_at: AwareDatetime
     valid_until: AwareDatetime
     note: str = Field(min_length=1, max_length=4000)
@@ -224,6 +227,10 @@ class StatusInput(Input):
     def interval(self):
         if self.valid_until <= self.effective_at:
             raise ValueError("valid_until must follow effective_at")
+        if self.reason_code == "authority_order" and not self.order_reference:
+            raise ValueError("authority order requires an order reference")
+        if "all" in self.vehicle_scope and len(self.vehicle_scope) > 1:
+            raise ValueError("all cannot be combined with another vehicle scope")
         return self
 
 
@@ -741,6 +748,16 @@ def build_router(factory, current_actor):
                         or revision.payload["action"] != "accept"
                     ):
                         fail(422, "accepted_segment_evidence_required")
+                previous = next((row for row in session.scalars(
+                    select(StatusDecision).where(StatusDecision.segment_id == body.segment_id)
+                    .order_by(StatusDecision.created_at.desc(), StatusDecision.id.desc())
+                ) if row.payload["direction"] == body.direction
+                    and set(row.payload["vehicle_scope"]) == set(body.vehicle_scope)), None)
+                record_payload = {
+                    **payload,
+                    "supersedes_decision_id": previous.id if previous else None,
+                    "audit_event_id": audit_id,
+                }
                 decision_id = str(uuid4())
                 session.add(
                     StatusDecision(
@@ -751,13 +768,12 @@ def build_router(factory, current_actor):
                         created_at=now_utc(),
                         effective_at=body.effective_at,
                         valid_until=body.valid_until,
-                        payload=payload,
+                        payload=record_payload,
                     )
                 )
                 return {
-                    **payload,
+                    **record_payload,
                     "decision_id": decision_id,
-                    "audit_event_id": audit_id,
                     "request_id": request_id,
                 }
 
@@ -784,6 +800,22 @@ def build_router(factory, current_actor):
             return effective_status(
                 session, segment_id, direction=direction, vehicle_profile=vehicle_profile
             )
+
+    @router.get("/v1/status-decisions/history")
+    def status_history(segment_id: str, actor: AuthContext = Depends(current_actor)):
+        with factory() as session:
+            authorize(actor, "read_corridor_state", segment_scope(session, segment_id))
+            rows = session.scalars(select(StatusDecision).where(
+                StatusDecision.segment_id == segment_id
+            ).order_by(StatusDecision.created_at.desc(), StatusDecision.id.desc())).all()
+            return {"segment_id": segment_id, "decisions": [
+                {**row.payload, "decision_id": row.id, "actor_id": row.actor_id,
+                 "created_at": utc(row.created_at).isoformat(),
+                 "effective_at": utc(row.effective_at).isoformat(),
+                 "valid_until": utc(row.valid_until).isoformat(),
+                 "expired": utc(row.valid_until) <= now_utc()}
+                for row in rows
+            ]}
 
     def mission_scope(session, actor, mission_id, action):
         row = session.get(Mission, mission_id)
