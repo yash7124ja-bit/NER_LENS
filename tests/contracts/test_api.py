@@ -198,6 +198,7 @@ def test_openapi_contains_only_implemented_routes_and_matches_snapshot(api):
         "/v1/corridors/{corridor_id}/capabilities",
         "/v1/auth/logout",
         "/v1/routes/compare",
+        "/v1/missions/{mission_id}/route-selection",
         "/v1/mission-assignees",
         "/v1/vehicles",
         "/v1/admin/user-stories",

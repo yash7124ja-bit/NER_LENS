@@ -30,6 +30,8 @@ from ner_lens.operations import (
     build_router,
     effective_status,
 )
+from ner_lens.routing import build_router as routing_router
+from ner_lens.sources import SourceSnapshot
 
 
 @pytest.fixture
@@ -107,7 +109,12 @@ def api(tmp_path, monkeypatch):
         )
     selected = [actors["field_reporter-north"]]
     app = FastAPI()
+    @app.middleware("http")
+    async def request_id(request, call_next):
+        request.state.request_id = str(uuid4())
+        return await call_next(request)
     app.include_router(build_router(factory, lambda: selected[0]))
+    app.include_router(routing_router(factory, lambda: selected[0], Settings(database_url=url)))
     with TestClient(app) as client:
         yield client, factory, selected, actors
     factory.kw["bind"].dispose()
@@ -131,6 +138,90 @@ def report_body():
 
 def post(client, path, body, key=None, **headers):
     return client.post(path, json=body, headers={"Idempotency-Key": key or str(uuid4()), **headers})
+
+
+def test_route_baseline_selection_rejects_stale_and_changed_decisions(api, monkeypatch):
+    client, factory, selected, actors = api
+    selected[0] = actors["dispatcher-north"]
+    now = datetime.now(timezone.utc)
+    mission = post(client, "/v1/missions", {
+        "cargo_class": "medicine", "priority": "high",
+        "origin": {"type": "Point", "coordinates": [92, 25]},
+        "destination": {"type": "Point", "coordinates": [92.1, 25.1]},
+        "delivery_window": {"start": now.isoformat(),
+                            "end": (now + timedelta(hours=2)).isoformat()},
+        "vehicle_profile": "rigid_truck", "corridor_id": "north",
+        "gps_consent": {"basis": "mission_assignment", "recorded_at": now.isoformat()},
+    })
+    assert mission.status_code == 201, mission.text
+    mid = mission.json()["mission_id"]
+
+    def snapshot(age=0):
+        return SourceSnapshot(
+            id=str(uuid4()), source="mappls", url="https://route.mappls.com/route/direction",
+            retrieved_at=datetime.now(timezone.utc) - timedelta(seconds=age),
+            status="available", reason="retrieval_validated", sha256="a" * 64,
+            parser_version="test", records=[{
+                "geometry": {"type": "LineString", "coordinates": [[92, 25], [92.1, 25.1]]},
+                "distance_m": 1000, "duration_seconds": 120,
+            }],
+        )
+
+    monkeypatch.setattr("ner_lens.routing.retrieve", lambda *a, **k: snapshot())
+    payload = {
+        "corridor_id": "north", "graph_version_id": "test-v1", "mission_id": mid,
+        "origin": mission.json()["origin"], "destination": mission.json()["destination"],
+        "vehicle_profile": "rigid_truck", "departure_at": now.isoformat(),
+        "deadline_at": mission.json()["delivery_window"]["end"],
+    }
+    comparison = post(client, "/v1/routes/compare", payload, "compare")
+    assert comparison.status_code == 200, comparison.text
+    result = comparison.json()
+    assert result["recommended_route_id"] is None
+    assert result["vehicle_entitlement"] == "unverified_car_baseline"
+    assert result["source_snapshot_id"] and result["routes"][0]["geometry"]
+    route_id = result["routes"][0]["route_id"]
+    path = f"/v1/missions/{mid}/route-selection"
+    choice = {"comparison_id": result["comparison_id"], "route_id": route_id}
+    first = post(client, path, choice, "select")
+    assert first.status_code == 201, first.text
+    assert post(client, path, choice, "select").json() == first.json()
+    assert post(client, path, {**choice, "route_id": "other"}, "select").status_code == 409
+    assert client.get(path).json()["selection"]["route_id"] == route_id
+    selected[0] = actors["dispatcher-south"]
+    assert post(client, path, choice).status_code == 403
+    selected[0] = actors["dispatcher-north"]
+    assert post(client, "/v1/routes/compare", {
+        **payload, "vehicle_profile": "light_goods"
+    }).status_code == 409
+
+    with factory.begin() as session:
+        from ner_lens.routing import RouteComparisonRecord
+        record = session.get(RouteComparisonRecord, result["comparison_id"])
+        record.payload = {**record.payload, "retrieved_at": (now - timedelta(hours=2)).isoformat()}
+    assert post(client, path, choice).status_code == 409
+
+    fresh = post(client, "/v1/routes/compare", payload, "compare-fresh").json()
+    fresh_choice = {
+        "comparison_id": fresh["comparison_id"],
+        "route_id": fresh["routes"][0]["route_id"],
+    }
+    with factory.begin() as session:
+        from ner_lens.operations import StatusDecision
+        session.add(StatusDecision(
+            id=str(uuid4()), segment_id="north", actor_id="district_officer-north",
+            jurisdiction_id="north", effective_at=now - timedelta(minutes=1),
+            valid_until=now + timedelta(hours=1), created_at=now,
+            payload={"status": "closed", "direction": "both", "vehicle_scope": ["all"]},
+        ))
+    assert post(client, path, fresh_choice).status_code == 409
+    blocked = post(client, "/v1/routes/compare", payload, "compare-blocked")
+    assert blocked.status_code == 200
+    assert blocked.json()["routes"] == []
+    assert blocked.json()["mode"] == "no_verified_feasible_route"
+    with factory.begin() as session:
+        session.get(CorridorVersion, "north").graph_version = "test-v2"
+    assert post(client, path, fresh_choice).status_code == 409
 
 
 def test_report_review_status_expiry_and_audit(api):

@@ -1,6 +1,6 @@
 """Scoped baseline route comparisons. Missing verification policy means no recommendation."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -34,6 +34,22 @@ class RouteComparisonRecord(Base):
     payload: Mapped[dict] = mapped_column(JSON)
 
 
+class RouteSelectionRecord(Base):
+    __tablename__ = "route_selection"
+    __table_args__ = (
+        UniqueConstraint("actor_id", "idempotency_key", name="uq_route_selection_actor_key"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    mission_id: Mapped[str] = mapped_column(ForeignKey("mission.id"), index=True)
+    comparison_id: Mapped[str] = mapped_column(ForeignKey("route_comparison.id"))
+    route_id: Mapped[str] = mapped_column(String(36))
+    actor_id: Mapped[str] = mapped_column(ForeignKey("actor.id"))
+    idempotency_key: Mapped[str] = mapped_column(String(255))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    selected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class RouteRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     corridor_id: str
@@ -51,6 +67,12 @@ class RouteRequest(BaseModel):
         if self.deadline_at <= self.departure_at:
             raise ValueError("deadline must follow departure")
         return self
+
+
+class RouteSelectionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    comparison_id: str
+    route_id: str
 
 
 def build_router(factory, current_actor, settings):
@@ -145,6 +167,16 @@ def build_router(factory, current_actor, settings):
                     or mission.corridor_id != corridor.id
                 ):
                     raise HTTPException(403)
+                if (
+                    mission.state != "planned"
+                    or mission.graph_version_id != corridor.graph_version
+                    or mission.payload["vehicle_profile"] != body.vehicle_profile
+                    or mission.payload["origin"] != body.origin.model_dump(mode="json")
+                    or mission.payload["destination"] != body.destination.model_dump(mode="json")
+                    or datetime.fromisoformat(mission.payload["delivery_window"]["end"])
+                    != body.deadline_at
+                ):
+                    raise HTTPException(409, "mission_route_request_mismatch")
             old = session.scalar(
                 select(RouteComparisonRecord).where(
                     RouteComparisonRecord.actor_id == actor.actor_id,
@@ -188,14 +220,13 @@ def build_router(factory, current_actor, settings):
                         ).buffer(buffer_m)
                     )
                 ]
-                blocked = [
-                    segment.id
-                    for segment in linked
-                    if effective_status(
+                statuses = {
+                    segment.id: effective_status(
                         session, segment.id, body.departure_at, vehicle_profile=body.vehicle_profile
-                    )["status"]
-                    == "closed"
-                ]
+                    )
+                    for segment in linked
+                }
+                blocked = [key for key, status in statuses.items() if status["status"] == "closed"]
                 if blocked:
                     excluded.extend(
                         {"segment_id": key, "reason": "active_authority_closure"} for key in blocked
@@ -206,6 +237,13 @@ def build_router(factory, current_actor, settings):
                         "route_id": str(uuid4()),
                         "geometry": candidate["geometry"],
                         "segment_ids": [s.id for s in linked],
+                        "decision_snapshots": {
+                            key: {
+                                "decision_id": status.get("decision_id"),
+                                "freshness": status["freshness"],
+                            }
+                            for key, status in statuses.items()
+                        },
                         "distance_m": candidate["distance_m"],
                         "travel_time_seconds": {
                             "p50": candidate["duration_seconds"],
@@ -236,8 +274,14 @@ def build_router(factory, current_actor, settings):
             result = {
                 "comparison_id": str(uuid4()),
                 "provider": provider,
+                "source_snapshot_id": snapshot.id,
+                "source_sha256": snapshot.sha256,
                 "retrieved_at": utc_datetime(snapshot.retrieved_at).isoformat(),
                 "graph_version_id": corridor.graph_version,
+                "mission_id": body.mission_id,
+                "vehicle_profile": body.vehicle_profile,
+                "departure_at": body.departure_at.isoformat(),
+                "vehicle_entitlement": "unverified_car_baseline",
                 "policy_id": None,
                 "policy_version": None,
                 "mode": "insufficient_evidence" if routes else "no_verified_feasible_route",
@@ -279,5 +323,97 @@ def build_router(factory, current_actor, settings):
             )
             session.commit()
             return result
+
+    @router.get("/v1/missions/{mission_id}/route-selection")
+    def get_selection(mission_id: str, actor=Depends(current_actor)):
+        with factory() as session:
+            mission = session.get(Mission, mission_id)
+            if not mission or mission.actor_id != actor.actor_id:
+                raise HTTPException(403)
+            decision = AuthorizationService(session_factory=factory).authorize(
+                actor, "view_mission", ResourceScope(jurisdiction_id=mission.jurisdiction_id)
+            )
+            if not decision.allowed:
+                raise HTTPException(403)
+            row = session.scalar(select(RouteSelectionRecord).where(
+                RouteSelectionRecord.mission_id == mission_id
+            ).order_by(RouteSelectionRecord.selected_at.desc(), RouteSelectionRecord.id.desc()))
+            return {"selection": None if row is None else {
+                "selection_id": row.id, "comparison_id": row.comparison_id,
+                "route_id": row.route_id, "selected_at": utc_datetime(row.selected_at),
+                "expires_at": utc_datetime(row.expires_at),
+                "status": "expired_baseline"
+                if datetime.now(timezone.utc) >= utc_datetime(row.expires_at)
+                else "planning_baseline_only",
+            }}
+
+    @router.post("/v1/missions/{mission_id}/route-selection", status_code=201)
+    def select_route(mission_id: str, body: RouteSelectionInput, request: Request,
+                     actor=Depends(current_actor), idempotency_key: str = Header()):
+        try:
+            validate_idempotency_key(idempotency_key)
+        except ValueError:
+            raise HTTPException(422, "invalid_idempotency_key") from None
+        digest = canonical_request_hash({"mission_id": mission_id, **body.model_dump()})
+        with factory() as session:
+            mission = session.get(Mission, mission_id)
+            if not mission or mission.actor_id != actor.actor_id:
+                raise HTTPException(403)
+            decision = AuthorizationService(session_factory=factory).authorize(
+                actor, "compare_routes", ResourceScope(jurisdiction_id=mission.jurisdiction_id),
+                request_id=request.state.request_id,
+            )
+            if not decision.allowed:
+                raise HTTPException(403)
+            old = session.scalar(select(RouteSelectionRecord).where(
+                RouteSelectionRecord.actor_id == actor.actor_id,
+                RouteSelectionRecord.idempotency_key == idempotency_key,
+            ))
+            if old:
+                if old.request_hash != digest:
+                    raise HTTPException(409, "idempotency_conflict")
+                return {"selection_id": old.id, "status": "planning_baseline_only"}
+            comparison = session.get(RouteComparisonRecord, body.comparison_id)
+            if (not comparison or comparison.actor_id != actor.actor_id
+                    or comparison.corridor_id != mission.corridor_id
+                    or comparison.payload.get("mission_id") != mission_id):
+                raise HTTPException(403)
+            graph = session.get(CorridorVersion, mission.corridor_id)
+            if (mission.state != "planned" or graph.graph_version != comparison.graph_version
+                    or mission.graph_version_id != graph.graph_version):
+                raise HTTPException(409, "graph_or_mission_changed")
+            result = comparison.payload
+            route = next(
+                (item for item in result["routes"] if item["route_id"] == body.route_id),
+                None,
+            )
+            if route is None:
+                raise HTTPException(422, "route_not_in_comparison")
+            retrieved = datetime.fromisoformat(result["retrieved_at"])
+            expires = retrieved + timedelta(seconds=settings.source_refresh_seconds)
+            if datetime.now(timezone.utc) >= expires:
+                raise HTTPException(409, "source_snapshot_expired")
+            departure = datetime.fromisoformat(result["departure_at"])
+            decision_at = max(datetime.now(timezone.utc), departure)
+            for segment_id, expected in route["decision_snapshots"].items():
+                current = effective_status(session, segment_id, decision_at,
+                                           vehicle_profile=result["vehicle_profile"])
+                if (current.get("decision_id") != expected["decision_id"]
+                        or current["freshness"] != expected["freshness"]):
+                    raise HTTPException(409, "decision_snapshot_changed")
+            row = RouteSelectionRecord(
+                id=str(uuid4()), mission_id=mission_id, comparison_id=comparison.id,
+                route_id=body.route_id, actor_id=actor.actor_id, idempotency_key=idempotency_key,
+                request_hash=digest, selected_at=datetime.now(timezone.utc), expires_at=expires,
+            )
+            session.add(row)
+            session.add(AuditEvent(
+                id=str(uuid4()), actor_id=actor.actor_id, action="routes.baseline_selected",
+                target_type="mission", target_id=mission_id, request_id=request.state.request_id,
+                jurisdiction_id=mission.jurisdiction_id, outcome="allowed",
+                reason="planning_baseline_only", after_hash=digest,
+            ))
+            session.commit()
+            return {"selection_id": row.id, "status": "planning_baseline_only"}
 
     return router
