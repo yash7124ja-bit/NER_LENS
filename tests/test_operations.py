@@ -315,7 +315,7 @@ def test_route_change_approval_is_scoped_idempotent_and_does_not_switch_driver_r
     client, factory, selected, actors = api
     selected[0] = actors["dispatcher-north"]
     now = datetime.now(timezone.utc)
-    from ner_lens.operations import StatusDecision
+    from ner_lens.operations import EvidenceReview, StatusDecision
     from ner_lens.routing import (
         AlertAcknowledgment,
         AlertDeliveryAttempt,
@@ -326,7 +326,9 @@ def test_route_change_approval_is_scoped_idempotent_and_does_not_switch_driver_r
         RouteSelectionRecord,
     )
 
-    mid, impact_id, decision_id, prior_id, comparison_id = (str(uuid4()) for _ in range(5))
+    mid, impact_id, decision_id, prior_id, comparison_id, report_id, review_id, other_id = (
+        str(uuid4()) for _ in range(8)
+    )
     old_route, alternate_route = str(uuid4()), str(uuid4())
     origin = {"type": "Point", "coordinates": [92, 25]}
     destination = {"type": "Point", "coordinates": [92.1, 25.1]}
@@ -361,6 +363,18 @@ def test_route_change_approval_is_scoped_idempotent_and_does_not_switch_driver_r
             )
         )
         session.add(
+            FieldReport(
+                id=report_id, client_report_id=report_id, actor_id="field_reporter-north",
+                segment_id="north", jurisdiction_id="north", received_at=now,
+                payload={"observed_at": now.isoformat()},
+                response={"review_state": "accepted_for_review"},
+            )
+        )
+        session.add(EvidenceReview(
+            id=review_id, evidence_id=report_id, actor_id="reviewer-north",
+            created_at=now, payload={"action": "accept"},
+        ))
+        session.add(
             StatusDecision(
                 id=decision_id,
                 segment_id="north",
@@ -369,7 +383,8 @@ def test_route_change_approval_is_scoped_idempotent_and_does_not_switch_driver_r
                 created_at=now,
                 effective_at=now - timedelta(minutes=1),
                 valid_until=now + timedelta(hours=1),
-                payload={"status": "closed", "direction": "both", "vehicle_scope": ["all"]},
+                payload={"status": "closed", "direction": "both", "vehicle_scope": ["all"],
+                         "evidence_ids": [report_id]},
             )
         )
         session.add(
@@ -399,6 +414,12 @@ def test_route_change_approval_is_scoped_idempotent_and_does_not_switch_driver_r
                 },
             )
         )
+        session.add(RouteComparisonRecord(
+            id=other_id, actor_id="dispatcher-north", corridor_id="north",
+            graph_version="test-v1", idempotency_key="other-mission-compare",
+            request_hash="9" * 64, created_at=now,
+            payload={"mission_id": str(uuid4()), "routes": []},
+        ))
         session.add(
             RouteComparisonRecord(
                 id=prior_id,
@@ -546,6 +567,25 @@ def test_route_change_approval_is_scoped_idempotent_and_does_not_switch_driver_r
     assert post(client, ack_path, {"decision": "decline"}, "driver-decline").status_code == 409
     driver_selection = client.get(f"/v1/missions/{mid}/route-selection").json()["selection"]
     assert driver_selection["route_id"] == alternate_route
+    selected[0] = actors["dispatcher-north"]
+    timeline = client.get(f"/v1/missions/{mid}/timeline")
+    assert timeline.status_code == 200, timeline.text
+    events = timeline.json()["events"]
+    assert {event["kind"] for event in events} >= {
+        "mission", "field_report", "review", "status_decision", "impact", "comparison",
+        "selection", "approval", "alert", "alert_delivery", "acknowledgment",
+    }
+    assert {event["source_ids"]["mission_id"] for event in events} == {mid}
+    assert other_id not in {event["event_id"] for event in events}
+    assert next(event for event in events if event["kind"] == "review")["source_ids"] == {
+        "mission_id": mid, "report_id": report_id, "decision_id": decision_id,
+        "review_id": review_id,
+    }
+    assert [event["at"] for event in events] == sorted(event["at"] for event in events)
+    selected[0] = actors["dispatcher-south"]
+    assert client.get(f"/v1/missions/{mid}/timeline").status_code == 403
+    selected[0] = actors["driver-north"]
+    assert client.get(f"/v1/missions/{mid}/timeline").status_code == 403
     with factory.begin() as session:
         assert session.query(RouteAlert).count() == 2
         assert session.query(AlertDeliveryAttempt).count() == 2

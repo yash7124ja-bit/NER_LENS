@@ -201,6 +201,7 @@ def test_openapi_contains_only_implemented_routes_and_matches_snapshot(api):
         "/v1/missions/{mission_id}/route-selection",
         "/v1/missions/{mission_id}/route-change-approval",
         "/v1/missions/{mission_id}/route-alert",
+        "/v1/missions/{mission_id}/timeline",
         "/v1/alerts",
         "/v1/alerts/{alert_id}/acknowledge",
         "/v1/mission-assignees",

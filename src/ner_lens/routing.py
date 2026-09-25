@@ -17,7 +17,14 @@ from ner_lens.corridor.models import Base, CorridorVersion, RoadSegment
 from ner_lens.identity.models import AuditEvent
 from ner_lens.identity.replay import authorize_corridor
 from ner_lens.identity.service import AuthorizationService, ResourceScope
-from ner_lens.operations import Mission, Point, StatusDecision, effective_status
+from ner_lens.operations import (
+    EvidenceReview,
+    FieldReport,
+    Mission,
+    Point,
+    StatusDecision,
+    effective_status,
+)
 from ner_lens.sources import SourceSnapshot, retrieve
 from ner_lens.spatial import assert_corridor_point, projected_corridor
 
@@ -901,6 +908,118 @@ def build_router(factory, current_actor, settings):
                 RouteAlert.mission_id == mission_id
             ).order_by(RouteAlert.created_at.desc(), RouteAlert.id.desc()))
             return {"alert": None if alert is None else alert_view(session, alert)}
+
+    @router.get("/v1/missions/{mission_id}/timeline")
+    def mission_timeline(mission_id: str, request: Request, actor=Depends(current_actor)):
+        with factory() as session:
+            mission = session.get(Mission, mission_id)
+            if mission is None or mission.actor_id != actor.actor_id:
+                raise HTTPException(403)
+            access = AuthorizationService(session_factory=factory).authorize(
+                actor, "view_mission", ResourceScope(jurisdiction_id=mission.jurisdiction_id),
+                request_id=request.state.request_id,
+            )
+            if not access.allowed:
+                raise HTTPException(403)
+
+            events = []
+
+            def add(kind, row_id, at, actor_id, status, **source_ids):
+                events.append({
+                    "event_id": row_id, "kind": kind, "at": utc_datetime(at).isoformat(),
+                    "actor_id": actor_id, "status": status,
+                    "source_ids": {"mission_id": mission_id, **source_ids},
+                })
+
+            add("mission", mission.id, mission.created_at, mission.actor_id, "created")
+            for event in session.scalars(select(AuditEvent).where(
+                AuditEvent.target_id == mission_id,
+                AuditEvent.target_type == "mission",
+                AuditEvent.action.like("mission.%"),
+            )).all():
+                if event.action != "mission.created":
+                    add("mission", event.id, event.occurred_at, event.actor_id,
+                        event.action.removeprefix("mission."))
+
+            selections = session.scalars(select(RouteSelectionRecord).where(
+                RouteSelectionRecord.mission_id == mission_id
+            )).all()
+            impacts = session.scalars(select(MissionImpactRecord).where(
+                MissionImpactRecord.mission_id == mission_id
+            )).all()
+            approvals = session.scalars(select(RouteChangeApproval).where(
+                RouteChangeApproval.mission_id == mission_id
+            )).all()
+            alerts = session.scalars(select(RouteAlert).where(
+                RouteAlert.mission_id == mission_id
+            )).all()
+            for comparison in session.scalars(select(RouteComparisonRecord).where(
+                RouteComparisonRecord.corridor_id == mission.corridor_id,
+                RouteComparisonRecord.actor_id == mission.actor_id,
+            )).all():
+                if comparison.payload.get("mission_id") == mission_id:
+                    add("comparison", comparison.id, comparison.created_at, comparison.actor_id,
+                        comparison.payload.get("mode", "recorded"),
+                        comparison_id=comparison.id,
+                        source_snapshot_id=comparison.payload.get("source_snapshot_id"))
+            for row in selections:
+                add("selection", row.id, row.selected_at, row.actor_id, "selected",
+                    selection_id=row.id, comparison_id=row.comparison_id, route_id=row.route_id)
+            decision_ids = set()
+            for row in impacts:
+                decision_ids.add(row.decision_id)
+                add("impact", row.id, row.assessed_at, None, "assessed",
+                    impact_id=row.id, decision_id=row.decision_id,
+                    selection_id=row.route_selection_id)
+                if row.resolved_at:
+                    add("impact_resolution", row.id, row.resolved_at, None, "resolved",
+                        impact_id=row.id, decision_id=row.decision_id)
+            for row in approvals:
+                add("approval", row.id, row.approved_at, row.actor_id,
+                    "pending_driver_acknowledgment", approval_id=row.id,
+                    impact_id=row.impact_id, comparison_id=row.comparison_id,
+                    route_id=row.route_id)
+            for row in alerts:
+                add("alert", row.id, row.created_at, None, "queued_in_app",
+                    alert_id=row.id, approval_id=row.approval_id)
+                for delivery in session.scalars(select(AlertDeliveryAttempt).where(
+                    AlertDeliveryAttempt.alert_id == row.id
+                )).all():
+                    add("alert_delivery", delivery.id, delivery.attempted_at, None,
+                        delivery.outcome, alert_id=row.id, channel=delivery.channel)
+                for acknowledgment in session.scalars(select(AlertAcknowledgment).where(
+                    AlertAcknowledgment.alert_id == row.id
+                )).all():
+                    add("acknowledgment", acknowledgment.id, acknowledgment.acknowledged_at,
+                        acknowledgment.actor_id, acknowledgment.decision,
+                        alert_id=row.id, selection_id=acknowledgment.selection_id)
+            for decision_id in decision_ids:
+                decision = session.get(StatusDecision, decision_id)
+                if decision is None or decision.jurisdiction_id != mission.jurisdiction_id:
+                    continue
+                segment = session.get(RoadSegment, decision.segment_id)
+                if segment is None or segment.corridor_version_id != mission.corridor_id:
+                    continue
+                add("status_decision", decision.id, decision.created_at, decision.actor_id,
+                    decision.payload.get("status", "unknown"), decision_id=decision.id,
+                    segment_id=decision.segment_id)
+                for evidence_id in decision.payload.get("evidence_ids", []):
+                    report = session.get(FieldReport, evidence_id)
+                    if report is None or report.segment_id != decision.segment_id:
+                        continue
+                    add("field_report", report.id, report.received_at, report.actor_id,
+                        report.response.get("review_state", "submitted"),
+                        report_id=report.id, decision_id=decision.id,
+                        segment_id=report.segment_id)
+                    for review in session.scalars(select(EvidenceReview).where(
+                        EvidenceReview.evidence_id == report.id
+                    )).all():
+                        add("review", review.id, review.created_at, review.actor_id,
+                            review.payload.get("action", "reviewed"),
+                            report_id=report.id, decision_id=decision.id,
+                            review_id=review.id)
+            events.sort(key=lambda item: (item["at"], item["kind"], item["event_id"]))
+            return {"mission_id": mission_id, "data_mode": "replay", "events": events}
 
     @router.post("/v1/alerts/{alert_id}/acknowledge", status_code=201)
     def acknowledge_alert(alert_id: str, body: AlertAcknowledgmentInput, request: Request,
