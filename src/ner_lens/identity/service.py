@@ -22,6 +22,7 @@ SUPPORTED_ROLES = {
     "field_reporter",
     "reviewer",
     "dispatcher",
+    "driver",
     "district_officer",
     "regional_viewer",
     "system_admin",
@@ -42,6 +43,7 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
     "dispatcher": frozenset(
         {"create_mission", "compare_routes", "view_mission", "read_corridor_state"}
     ),
+    "driver": frozenset({"view_assigned_mission"}),
     "district_officer": frozenset(
         {"publish_status", "expire_status", "approve_alert", "read_corridor_state"}
     ),

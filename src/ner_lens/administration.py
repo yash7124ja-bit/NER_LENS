@@ -25,6 +25,7 @@ Role = Literal[
     "field_reporter",
     "reviewer",
     "dispatcher",
+    "driver",
     "district_officer",
     "system_admin",
 ]
@@ -51,7 +52,7 @@ class StoryInput(BaseModel):
 class RolesInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     corridor_id: str
-    roles: list[Role] = Field(min_length=1, max_length=6)
+    roles: list[Role] = Field(min_length=1, max_length=7)
     status_authority: bool = False
 
 
@@ -59,6 +60,13 @@ class AccountInput(RolesInput):
     email: str = Field(min_length=3, max_length=254)
     display_name: str = Field(min_length=1, max_length=255)
     password: str = Field(min_length=12, max_length=1024, repr=False)
+
+
+class VehicleInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    corridor_id: str
+    alias: str = Field(min_length=1, max_length=64)
+    profile: Literal["light_goods", "rigid_truck", "emergency"]
 
 
 def ingest_stories(factory, records, *, overwrite=False):
@@ -81,6 +89,70 @@ def ingest_stories(factory, records, *, overwrite=False):
 def build_router(factory, current_actor, settings):
     router = APIRouter(tags=["administration"])
 
+    from ner_lens.operations import Vehicle
+
+    @router.get("/v1/admin/vehicles")
+    def vehicles(corridor_id: str, actor=Depends(current_actor)):
+        with factory() as session:
+            jurisdiction = scope(session, actor, corridor_id)
+            rows = session.scalars(
+                select(Vehicle)
+                .where(Vehicle.jurisdiction_id == jurisdiction)
+                .order_by(Vehicle.alias)
+            ).all()
+            return {
+                "vehicles": [
+                    {
+                        "vehicle_id": row.id,
+                        "alias": row.alias,
+                        "profile": row.profile,
+                        "active": row.active,
+                    }
+                    for row in rows
+                ]
+            }
+
+    @router.post("/v1/admin/vehicles", status_code=201)
+    def create_vehicle(body: VehicleInput, request: Request, actor=Depends(current_actor)):
+        with factory.begin() as session:
+            jurisdiction = scope(session, actor, body.corridor_id)
+            alias = body.alias.strip()
+            if not alias:
+                raise HTTPException(422, "vehicle_alias_required")
+            if session.scalar(
+                select(Vehicle.id).where(
+                    Vehicle.jurisdiction_id == jurisdiction, Vehicle.alias == alias
+                )
+            ):
+                raise HTTPException(409, "vehicle_alias_exists")
+            row = Vehicle(
+                id=str(uuid4()),
+                jurisdiction_id=jurisdiction,
+                alias=alias,
+                profile=body.profile,
+                active=True,
+            )
+            session.add(row)
+            session.add(
+                AuditEvent(
+                    id=str(uuid4()),
+                    actor_id=actor.actor_id,
+                    action="admin.vehicle_created",
+                    target_type="vehicle",
+                    target_id=row.id,
+                    jurisdiction_id=jurisdiction,
+                    request_id=request.state.request_id,
+                    outcome="allowed",
+                    reason="fleet alias created",
+                )
+            )
+            return {
+                "vehicle_id": row.id,
+                "alias": row.alias,
+                "profile": row.profile,
+                "active": True,
+            }
+
     @router.get("/v1/admin/corridors")
     def admin_corridors(actor=Depends(current_actor)):
         with factory() as session:
@@ -94,7 +166,8 @@ def build_router(factory, current_actor, settings):
             ).all()
             auth = AuthorizationService(session_factory=factory)
             permitted = [
-                row for row in rows
+                row
+                for row in rows
                 if auth.authorize(
                     actor, "manage_users", ResourceScope(jurisdiction_id=row.jurisdiction_id)
                 ).allowed

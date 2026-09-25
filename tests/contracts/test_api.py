@@ -193,11 +193,13 @@ def test_openapi_contains_only_implemented_routes_and_matches_snapshot(api):
         "/v1/admin/user-stories/reindex",
         "/health/sources",
         "/v1/admin/users",
+        "/v1/admin/vehicles",
         "/v1/admin/corridors",
         "/v1/corridors/{corridor_id}/capabilities",
         "/v1/auth/logout",
         "/v1/routes/compare",
         "/v1/mission-assignees",
+        "/v1/vehicles",
         "/v1/admin/user-stories",
         "/v1/corridors/{corridor_id}/state",
         "/v1/maps/config",
@@ -348,6 +350,29 @@ def test_super_admin_scope_user_creation_and_story_ingestion(api):
         )
     rows = client.get("/v1/admin/corridors").json()["corridors"]
     assert [row["corridor_id"] for row in rows] == [corridor]
+    vehicle = client.post(
+        "/v1/admin/vehicles",
+        json={
+            "corridor_id": corridor,
+            "alias": "Fleet A7",
+            "profile": "light_goods",
+        },
+    )
+    assert vehicle.status_code == 201, vehicle.text
+    assert client.get("/v1/admin/vehicles", params={"corridor_id": corridor}).json()[
+        "vehicles"
+    ] == [vehicle.json()]
+    assert (
+        client.post(
+            "/v1/admin/vehicles",
+            json={
+                "corridor_id": corridor,
+                "alias": "Fleet A7",
+                "profile": "light_goods",
+            },
+        ).status_code
+        == 409
+    )
     body = {
         "corridor_id": corridor,
         "email": "new-operator@example.test",

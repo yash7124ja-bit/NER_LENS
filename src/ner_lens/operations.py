@@ -9,7 +9,16 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, UniqueConstraint, select
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    select,
+)
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -67,6 +76,18 @@ class StatusDecision(Base):
     payload: Mapped[dict] = mapped_column(JSON)
 
 
+class Vehicle(Base):
+    __tablename__ = "vehicle"
+    __table_args__ = (
+        UniqueConstraint("jurisdiction_id", "alias", name="uq_vehicle_jurisdiction_alias"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    jurisdiction_id: Mapped[str] = mapped_column(ForeignKey("jurisdiction.id"), index=True)
+    alias: Mapped[str] = mapped_column(String(64))
+    profile: Mapped[str] = mapped_column(String(32))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class Mission(Base):
     __tablename__ = "mission"
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -74,6 +95,10 @@ class Mission(Base):
     corridor_id: Mapped[str] = mapped_column(ForeignKey("corridor_version.id"))
     jurisdiction_id: Mapped[str] = mapped_column(ForeignKey("jurisdiction.id"), index=True)
     graph_version_id: Mapped[str] = mapped_column(String(128))
+    vehicle_id: Mapped[str | None] = mapped_column(ForeignKey("vehicle.id"))
+    driver_actor_id: Mapped[str | None] = mapped_column(ForeignKey("actor.id"))
+    receiving_facility: Mapped[str | None] = mapped_column(String(255))
+    receiving_contact: Mapped[str | None] = mapped_column(String(255))
     state: Mapped[str] = mapped_column(String(16), default="planned")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -209,8 +234,11 @@ class MissionInput(Input):
     origin: Point
     destination: Point
     delivery_window: Window
-    vehicle_profile: str = Field(min_length=1, max_length=128)
+    vehicle_profile: Literal["light_goods", "rigid_truck", "emergency"]
     vehicle_id: str | None = None
+    driver_actor_id: str | None = None
+    receiving_facility: str | None = Field(default=None, min_length=1, max_length=255)
+    receiving_contact: str | None = Field(default=None, min_length=1, max_length=255)
     corridor_id: str
     route_id: str | None = None
     gps_consent: Consent
@@ -674,11 +702,15 @@ def build_router(factory, current_actor):
             if not session.get(MissionAssignment, (actor.actor_id, mission_id)):
                 fail(403, "mission_assignment_required")
             authorize(actor, action, row.jurisdiction_id)
+        elif action == "view_assigned_mission":
+            if row.driver_actor_id != actor.actor_id:
+                fail(403, "mission_assignment_required")
+            authorize(actor, action, row.jurisdiction_id)
         else:
             authorize(actor, "view_mission", row.jurisdiction_id, owner_actor_id=row.actor_id)
         return row
 
-    def mission_view(session, row):
+    def mission_view(session, row, *, private=False):
         last = session.scalar(
             select(GPSObservation)
             .where(GPSObservation.mission_id == row.id)
@@ -694,6 +726,10 @@ def build_router(factory, current_actor):
             "created_at": utc(row.created_at).isoformat(),
             "started_at": utc(row.started_at).isoformat() if row.started_at else None,
             "jurisdiction_id": row.jurisdiction_id,
+            "vehicle_id": row.vehicle_id,
+            "driver_actor_id": row.driver_actor_id,
+            "receiving_facility": row.receiving_facility,
+            **({"receiving_contact": row.receiving_contact} if private else {}),
             "last_fix": {**last.payload, "flags": last.flags} if last else None,
             "last_fix_age_seconds": max(0, (now_utc() - utc(last.captured_at)).total_seconds())
             if last
@@ -727,6 +763,30 @@ def build_router(factory, current_actor):
                 validate_point(session, graph.id, body.destination.coordinates)
                 if body.route_id:
                     fail(422, "route_binding_not_available")
+                if body.driver_actor_id and not body.vehicle_id:
+                    fail(422, "driver_requires_vehicle")
+                if body.receiving_contact and not body.receiving_facility:
+                    fail(422, "contact_requires_facility")
+                if body.vehicle_id:
+                    vehicle = session.get(Vehicle, body.vehicle_id)
+                    if (
+                        not vehicle
+                        or not vehicle.active
+                        or vehicle.jurisdiction_id != graph.jurisdiction_id
+                        or vehicle.profile != body.vehicle_profile
+                    ):
+                        fail(422, "vehicle_inactive_unscoped_or_incompatible")
+                if body.driver_actor_id:
+                    driver = session.get(Actor, body.driver_actor_id)
+                    assignment = session.scalar(
+                        select(RoleAssignment).where(
+                            RoleAssignment.actor_id == body.driver_actor_id,
+                            RoleAssignment.role == "driver",
+                            RoleAssignment.jurisdiction_id == graph.jurisdiction_id,
+                        )
+                    )
+                    if not driver or not driver.active or not assignment:
+                        fail(422, "driver_inactive_or_unscoped")
                 for actor_id in body.assigned_actor_ids:
                     stored = session.get(Actor, actor_id)
                     assignment = session.scalar(
@@ -744,15 +804,41 @@ def build_router(factory, current_actor):
                     corridor_id=graph.id,
                     jurisdiction_id=graph.jurisdiction_id,
                     graph_version_id=graph.graph_version,
+                    vehicle_id=body.vehicle_id,
+                    driver_actor_id=body.driver_actor_id,
+                    receiving_facility=body.receiving_facility,
+                    receiving_contact=body.receiving_contact,
                     state="planned",
                     created_at=now_utc(),
-                    payload=body.model_dump(mode="json"),
+                    payload=body.model_dump(
+                        mode="json",
+                        exclude={
+                            "vehicle_id",
+                            "driver_actor_id",
+                            "receiving_facility",
+                            "receiving_contact",
+                        },
+                    ),
                 )
                 session.add(row)
                 session.flush()
                 for actor_id in set(body.assigned_actor_ids):
                     session.add(MissionAssignment(actor_id=actor_id, mission_id=row.id))
-                return {**mission_view(session, row), "request_id": request_id}
+                if body.driver_actor_id or body.vehicle_id:
+                    session.add(
+                        AuditEvent(
+                            id=str(uuid4()),
+                            actor_id=actor.actor_id,
+                            action="mission.assignment_created",
+                            target_type="mission",
+                            target_id=row.id,
+                            jurisdiction_id=graph.jurisdiction_id,
+                            request_id=request_id,
+                            outcome="allowed",
+                            reason=f"driver={body.driver_actor_id};vehicle={body.vehicle_id}",
+                        )
+                    )
+                return {**mission_view(session, row, private=True), "request_id": request_id}
 
             return mutate(
                 session,
@@ -764,6 +850,23 @@ def build_router(factory, current_actor):
                 "mission.created",
                 create,
             )
+
+    @router.get("/v1/vehicles")
+    def vehicles(corridor_id: str, actor: AuthContext = Depends(current_actor)):
+        with factory() as session:
+            graph = corridor(session, corridor_id)
+            authorize(actor, "create_mission", graph.jurisdiction_id)
+            rows = session.scalars(
+                select(Vehicle)
+                .where(Vehicle.jurisdiction_id == graph.jurisdiction_id, Vehicle.active.is_(True))
+                .order_by(Vehicle.alias)
+            ).all()
+            return {
+                "vehicles": [
+                    {"vehicle_id": row.id, "alias": row.alias, "profile": row.profile}
+                    for row in rows
+                ]
+            }
 
     @router.get("/v1/mission-assignees")
     def assignees(corridor_id: str, actor: AuthContext = Depends(current_actor)):
@@ -783,6 +886,19 @@ def build_router(factory, current_actor):
                 .unique()
                 .all()
             )
+            drivers = (
+                session.scalars(
+                    select(Actor)
+                    .join(RoleAssignment)
+                    .where(
+                        Actor.active.is_(True),
+                        RoleAssignment.role == "driver",
+                        RoleAssignment.jurisdiction_id == graph.jurisdiction_id,
+                    )
+                )
+                .unique()
+                .all()
+            )
             return {
                 "actors": [
                     {
@@ -792,7 +908,16 @@ def build_router(factory, current_actor):
                         else "Field reporter",
                     }
                     for row in rows
-                ]
+                ],
+                "drivers": [
+                    {
+                        "actor_id": row.id,
+                        "display_name": account.display_name
+                        if (account := session.get(LocalAccount, row.id))
+                        else "Driver",
+                    }
+                    for row in drivers
+                ],
             }
 
     @router.get("/v1/missions")
@@ -800,7 +925,10 @@ def build_router(factory, current_actor):
         with factory() as session:
             graph = corridor(session, corridor_id)
             query = select(Mission).where(Mission.corridor_id == corridor_id)
-            if "field_reporter" in actor.roles:
+            if "driver" in actor.roles:
+                authorize(actor, "view_assigned_mission", graph.jurisdiction_id)
+                query = query.where(Mission.driver_actor_id == actor.actor_id)
+            elif "field_reporter" in actor.roles:
                 authorize(actor, "submit_gps", graph.jurisdiction_id)
                 query = query.join(MissionAssignment).where(
                     MissionAssignment.actor_id == actor.actor_id
@@ -814,8 +942,17 @@ def build_router(factory, current_actor):
     @router.get("/v1/missions/{mission_id}")
     def get_mission(mission_id: str, actor: AuthContext = Depends(current_actor)):
         with factory() as session:
-            action = "submit_gps" if "field_reporter" in actor.roles else "view_mission"
-            return mission_view(session, mission_scope(session, actor, mission_id, action))
+            action = (
+                "view_assigned_mission"
+                if "driver" in actor.roles
+                else "submit_gps"
+                if "field_reporter" in actor.roles
+                else "view_mission"
+            )
+            return mission_view(
+                session, mission_scope(session, actor, mission_id, action),
+                private=action != "submit_gps",
+            )
 
     @router.post("/v1/missions/{mission_id}/start", status_code=201)
     def start(

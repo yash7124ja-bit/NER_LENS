@@ -22,7 +22,14 @@ from ner_lens.identity.models import (
     StatusAuthority,
 )
 from ner_lens.identity.service import AuthContext
-from ner_lens.operations import FieldReport, GPSObservation, Mission, build_router, effective_status
+from ner_lens.operations import (
+    FieldReport,
+    GPSObservation,
+    Mission,
+    Vehicle,
+    build_router,
+    effective_status,
+)
 
 
 @pytest.fixture
@@ -65,6 +72,7 @@ def api(tmp_path, monkeypatch):
             "field_reporter",
             "reviewer",
             "dispatcher",
+            "driver",
             "district_officer",
             "regional_viewer",
             "system_admin",
@@ -339,3 +347,104 @@ def test_unassigned_mission_is_not_visible_or_actionable(api):
     assert client.get("/v1/missions", params={"corridor_id": "north"}).status_code == 403
     selected[0] = replace(actors["field_reporter-north"], expires_at=now - timedelta(seconds=1))
     assert client.get("/v1/missions", params={"corridor_id": "north"}).status_code == 403
+
+
+def test_scoped_vehicle_driver_and_private_receiving_assignment(api):
+    client, factory, selected, actors = api
+    with factory.begin() as session:
+        for vehicle_id, jurisdiction, profile, active in (
+            ("vehicle-north", "north", "rigid_truck", True),
+            ("vehicle-light", "north", "light_goods", True),
+            ("vehicle-inactive", "north", "rigid_truck", False),
+            ("vehicle-south", "south", "rigid_truck", True),
+        ):
+            session.add(
+                Vehicle(
+                    id=vehicle_id,
+                    jurisdiction_id=jurisdiction,
+                    alias=vehicle_id,
+                    profile=profile,
+                    active=active,
+                )
+            )
+    selected[0] = actors["dispatcher-north"]
+    vehicles = client.get("/v1/vehicles", params={"corridor_id": "north"})
+    assert vehicles.status_code == 200
+    assert {item["vehicle_id"] for item in vehicles.json()["vehicles"]} == {
+        "vehicle-north",
+        "vehicle-light",
+    }
+    assert client.get("/v1/vehicles", params={"corridor_id": "south"}).status_code == 403
+    assignees = client.get("/v1/mission-assignees", params={"corridor_id": "north"}).json()
+    assert [driver["actor_id"] for driver in assignees["drivers"]] == ["driver-north"]
+    now = datetime.now(timezone.utc)
+    body = {
+        "cargo_class": "medicine",
+        "priority": "high",
+        "origin": {"type": "Point", "coordinates": [92, 25]},
+        "destination": {"type": "Point", "coordinates": [92.1, 25.1]},
+        "delivery_window": {
+            "start": now.isoformat(),
+            "end": (now + timedelta(hours=1)).isoformat(),
+        },
+        "vehicle_profile": "rigid_truck",
+        "vehicle_id": "vehicle-north",
+        "driver_actor_id": "driver-north",
+        "receiving_facility": "Test hospital",
+        "receiving_contact": "Receiving desk, internal extension 42",
+        "corridor_id": "north",
+        "gps_consent": {"basis": "mission_assignment", "recorded_at": now.isoformat()},
+        "assigned_actor_ids": ["field_reporter-north"],
+    }
+    created = post(client, "/v1/missions", body, "mission-assignment")
+    assert created.status_code == 201, created.text
+    assert post(client, "/v1/missions", body, "mission-assignment").json() == created.json()
+    mission_id = created.json()["mission_id"]
+    listing = client.get("/v1/missions", params={"corridor_id": "north"}).json()["missions"]
+    assert [item["mission_id"] for item in listing] == [mission_id]
+    assert "receiving_contact" not in listing[0]
+    assert (
+        client.get(f"/v1/missions/{mission_id}").json()["receiving_contact"]
+        == body["receiving_contact"]
+    )
+    selected[0] = actors["field_reporter-north"]
+    assert "receiving_contact" not in client.get(f"/v1/missions/{mission_id}").json()
+    selected[0] = actors["dispatcher-north"]
+    with factory() as session:
+        row = session.get(Mission, mission_id)
+        assert (row.vehicle_id, row.driver_actor_id, row.receiving_facility) == (
+            "vehicle-north",
+            "driver-north",
+            "Test hospital",
+        )
+        assert "receiving_contact" not in row.payload
+        assert session.scalar(
+            select(AuditEvent).where(
+                AuditEvent.target_id == mission_id,
+                AuditEvent.action == "mission.assignment_created",
+            )
+        )
+    for change in (
+        {"vehicle_id": "vehicle-light"},
+        {"vehicle_id": "vehicle-inactive"},
+        {"vehicle_id": "vehicle-south"},
+        {"driver_actor_id": "driver-south"},
+        {"driver_actor_id": "driver-north", "vehicle_id": None},
+        {"delivery_window": None},
+    ):
+        assert post(client, "/v1/missions", {**body, **change}).status_code == 422
+    with factory.begin() as session:
+        session.get(Actor, "driver-north").active = False
+    assert post(client, "/v1/missions", body).status_code == 422
+    selected[0] = actors["driver-north"]
+    assert client.get("/v1/missions", params={"corridor_id": "north"}).status_code == 403
+    with factory.begin() as session:
+        session.get(Actor, "driver-north").active = True
+    assert [
+        item["mission_id"]
+        for item in client.get("/v1/missions", params={"corridor_id": "north"}).json()["missions"]
+    ] == [mission_id]
+    assert client.get(f"/v1/missions/{mission_id}").status_code == 200
+    assert post(client, f"/v1/missions/{mission_id}/start", None).status_code == 403
+    selected[0] = actors["driver-south"]
+    assert client.get(f"/v1/missions/{mission_id}").status_code == 403
