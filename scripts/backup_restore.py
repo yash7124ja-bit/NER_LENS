@@ -77,6 +77,26 @@ def restore(archive: Path, target_db: str, key: bytes) -> None:
     target_db = _database(target_db)
     if target_db == payload["source_db"]:
         raise ValueError("restore target must be distinct from source database")
+    # Extension-owned tables (for example PostGIS spatial_ref_sys) are not user data.
+    count = _run(
+        [
+            "psql",
+            "--no-password",
+            "--no-psqlrc",
+            "--tuples-only",
+            "--no-align",
+            "--dbname",
+            target_db,
+            "--command",
+            "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+            "WHERE c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S') "
+            "AND n.nspname NOT IN ('pg_catalog', 'information_schema') "
+            "AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_class'::regclass "
+            "AND d.objid = c.oid AND d.deptype = 'e')",
+        ]
+    )
+    if count.strip() != b"0":
+        raise ValueError("restore target must contain no user relations")
     # No --clean or --create: an existing empty target is required; any error rolls back.
     _run(
         [

@@ -194,7 +194,17 @@ def test_route_baseline_selection_rejects_stale_and_changed_decisions(api, monke
     assert first.status_code == 201, first.text
     assert post(client, path, choice, "select").json() == first.json()
     assert post(client, path, {**choice, "route_id": "other"}, "select").status_code == 409
-    assert client.get(path).json()["selection"]["route_id"] == route_id
+    saved = client.get(path).json()["selection"]
+    assert saved["route_id"] == route_id
+    assert saved["route"] == result["routes"][0]
+    assert saved["source"]["source_snapshot_id"] == result["source_snapshot_id"]
+    assert saved["source"]["vehicle_entitlement"] == "unverified_car_baseline"
+    with factory.begin() as session:
+        session.get(Mission, mid).driver_actor_id = "driver-north"
+    selected[0] = actors["driver-north"]
+    assert client.get(path).json()["selection"]["route"] == result["routes"][0]
+    selected[0] = actors["driver-south"]
+    assert client.get(path).status_code == 403
     selected[0] = actors["dispatcher-south"]
     assert post(client, path, choice).status_code == 403
     selected[0] = actors["dispatcher-north"]

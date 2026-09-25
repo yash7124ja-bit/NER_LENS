@@ -517,10 +517,24 @@ def build_router(factory, current_actor, settings):
             row = session.scalar(select(RouteSelectionRecord).where(
                 RouteSelectionRecord.mission_id == mission_id
             ).order_by(RouteSelectionRecord.selected_at.desc(), RouteSelectionRecord.id.desc()))
+            comparison = session.get(RouteComparisonRecord, row.comparison_id) if row else None
+            route = None
+            if (comparison and comparison.corridor_id == mission.corridor_id
+                    and comparison.payload.get("mission_id") == mission_id):
+                route = next((candidate for candidate in comparison.payload.get("routes", [])
+                              if candidate.get("route_id") == row.route_id), None)
             return {"selection": None if row is None else {
                 "selection_id": row.id, "comparison_id": row.comparison_id,
                 "route_id": row.route_id, "selected_at": utc_datetime(row.selected_at),
                 "expires_at": utc_datetime(row.expires_at),
+                "route": route,
+                "source": None if route is None else {
+                    "provider": comparison.payload.get("provider"),
+                    "source_snapshot_id": comparison.payload.get("source_snapshot_id"),
+                    "retrieved_at": comparison.payload.get("retrieved_at"),
+                    "graph_version_id": comparison.graph_version,
+                    "vehicle_entitlement": comparison.payload.get("vehicle_entitlement"),
+                },
                 "status": "expired_baseline"
                 if datetime.now(timezone.utc) >= utc_datetime(row.expires_at)
                 else "planning_baseline_only",
