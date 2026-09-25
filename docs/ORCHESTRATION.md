@@ -80,7 +80,7 @@ This repository does not own:
 - autonomous dispatch or safety certification;
 - production identity-provider administration;
 - unrestricted government, ULIP, carrier, or private fleet access;
-- LLM, RAG, computer-vision, vector-store, blockchain, or multi-agent product features.
+- Unrestricted autonomous LLM decisions, blockchain, or multi-agent product features. The later, bounded Jev/Gemini decision-support direction is recorded in [AI_DECISION_SUPPORT.md](./AI_DECISION_SUPPORT.md); it does not change the authority or route-safety invariants above.
 
 The backend provides contracts required by a separate future PWA. Offline client persistence is outside this repository; server idempotency, conflict preservation, media completion, and replay safety are inside it.
 
