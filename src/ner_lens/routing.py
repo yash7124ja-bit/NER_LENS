@@ -17,6 +17,7 @@ from ner_lens.corridor.models import Base, CorridorVersion, RoadSegment
 from ner_lens.identity.models import AuditEvent
 from ner_lens.identity.replay import authorize_corridor
 from ner_lens.identity.service import AuthorizationService, ResourceScope
+from ner_lens.local_routing import retrieve_local_graphhopper
 from ner_lens.operations import (
     EvidenceReview,
     FieldReport,
@@ -363,12 +364,15 @@ def build_router(factory, current_actor, settings):
                 assert_corridor_point(session, corridor.id, body.destination.coordinates)
             except ValueError:
                 raise HTTPException(422, "outside_corridor_bounds") from None
-            provider = "mappls" if settings.providers.get("MAPPLS_API_KEY") else "graphhopper"
-            snapshot = retrieve(
-                provider,
-                settings,
-                points=[body.origin.coordinates, body.destination.coordinates],
-            )
+            points = [body.origin.coordinates, body.destination.coordinates]
+            if settings.graphhopper_local_url:
+                provider = "graphhopper_local"
+                snapshot = retrieve_local_graphhopper(
+                    settings, points=points, profile=body.vehicle_profile
+                )
+            else:
+                provider = "mappls" if settings.providers.get("MAPPLS_API_KEY") else "graphhopper"
+                snapshot = retrieve(provider, settings, points=points)
             session.add(snapshot)
             if snapshot.status != "available":
                 session.commit()
@@ -425,7 +429,11 @@ def build_router(factory, current_actor, settings):
                             "p50": candidate["duration_seconds"],
                             "low": None,
                             "high": None,
-                            "basis": "car_free_flow_baseline_unvalidated",
+                            "basis": (
+                                "graphhopper_profile_free_flow_unvalidated"
+                                if provider == "graphhopper_local"
+                                else "car_free_flow_baseline_unvalidated"
+                            ),
                         },
                         "risk_exposure": {
                             "probability_weighted_minutes": None,
@@ -458,7 +466,10 @@ def build_router(factory, current_actor, settings):
                 "impact_id": body.impact_id,
                 "vehicle_profile": body.vehicle_profile,
                 "departure_at": body.departure_at.isoformat(),
-                "vehicle_entitlement": "unverified_car_baseline",
+                "vehicle_entitlement": (
+                    "graphhopper_profile_applied_legality_unverified"
+                    if provider == "graphhopper_local" else "unverified_car_baseline"
+                ),
                 "policy_id": None,
                 "policy_version": None,
                 "mode": "insufficient_evidence" if routes else "no_verified_feasible_route",
@@ -469,6 +480,9 @@ def build_router(factory, current_actor, settings):
                     "No approved route verification policy is configured.",
                     "Synthetic corridor matching is not a validated road-edge association.",
                     "Time interval and traffic/disruption delay are not measured.",
+                    *(["OSM height, weight and HGV tags are incomplete; "
+                       "vehicle legality is unverified."]
+                      if provider == "graphhopper_local" else []),
                 ],
                 "request_id": request.state.request_id,
             }

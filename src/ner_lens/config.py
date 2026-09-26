@@ -50,6 +50,8 @@ class Settings:
     source_refresh_seconds: int = 3600
     field_report_max_age_seconds: int | None = None
     map_style_url: str = ""
+    graphhopper_local_url: str = ""
+    graphhopper_data_date: str = ""
     max_request_bytes: int = 3 * 1024 * 1024
     media_s3_endpoint: str = ""
     media_s3_bucket: str = ""
@@ -123,6 +125,8 @@ class Settings:
                 else None
             ),
             map_style_url=os.getenv("MAP_STYLE_URL", ""),
+            graphhopper_local_url=os.getenv("GRAPHHOPPER_LOCAL_URL", ""),
+            graphhopper_data_date=os.getenv("GRAPHHOPPER_DATA_DATE", ""),
             max_request_bytes=positive("MAX_REQUEST_BYTES", 3 * 1024 * 1024),
             media_s3_endpoint=os.getenv("MEDIA_S3_ENDPOINT", ""),
             media_s3_bucket=os.getenv("MEDIA_S3_BUCKET", ""),

@@ -4,6 +4,8 @@
 
 Set environment variables (inject secrets through your shell/secret manager; do not commit values): `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DATABASE_URL`, and `GRAPHHOPPER_PBF`. The database URL must use the Compose hostname `db`, port 5432, and URL-encoded credentials corresponding to the PostgreSQL variables. `GRAPHHOPPER_PBF` should point to `D:/SIH-2026/NER_LENS_ARTIFACTS/m0/north-eastern-zone-260909.osm.pbf`. The retained extract SHA-256 is `9250938dd6e8c61ad3ca533620a86c5d286e86f60c2bc45086e173f2ace068a9`; verify it against the retained receipt before initial import.
 
+Set `GRAPHHOPPER_DATA_DATE` to the `osm_extract.osm_data_as_of` value in the retained v3 provenance receipt. The API checks GraphHopper `/info` for that date and the requested vehicle profile before it accepts a route response. Compose connects to `GRAPHHOPPER_LOCAL_URL` on the private network. If the graph is unavailable or mismatched, comparison fails closed. These are profile-specific OSM baselines; missing height, weight and HGV tags still prevent a vehicle-legality or current-passability claim.
+
 ```
 docker compose config --quiet
 docker compose build

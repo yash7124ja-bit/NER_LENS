@@ -1,4 +1,6 @@
 .git
+.worktrees
+.playwright-cli
 .env
 .env.*
 !.env.example

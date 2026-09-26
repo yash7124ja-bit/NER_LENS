@@ -15,7 +15,8 @@ services:
       ALLOWED_HOSTS: localhost,127.0.0.1,api
       AUTH_ALLOWED_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
       SESSION_COOKIE_SECURE: "false"
-      GRAPHHOPPER_URL: http://graphhopper:8989
+      GRAPHHOPPER_LOCAL_URL: http://graphhopper:8989
+      GRAPHHOPPER_DATA_DATE: ${GRAPHHOPPER_DATA_DATE:?Set the retained extract data date from its provenance receipt}
     ports: ["127.0.0.1:8000:8000"]
     depends_on:
       db:

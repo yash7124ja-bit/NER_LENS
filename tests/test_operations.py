@@ -241,6 +241,57 @@ def test_route_baseline_selection_rejects_stale_and_changed_decisions(api, monke
     assert post(client, path, fresh_choice).status_code == 409
 
 
+def test_route_comparison_uses_private_graph_profile_when_configured(api, monkeypatch):
+    _, factory, selected, actors = api
+    selected[0] = actors["dispatcher-north"]
+    settings = Settings(
+        database_url=str(factory.kw["bind"].url),
+        graphhopper_local_url="http://graphhopper:8989",
+        graphhopper_data_date="2026-09-09T20:21:20Z",
+    )
+    calls = []
+
+    def private_route(_settings, *, points, profile):
+        calls.append((points, profile))
+        return SourceSnapshot(
+            id=str(uuid4()), source="graphhopper_local", url="private://graphhopper/route",
+            retrieved_at=datetime.now(timezone.utc), status="available",
+            reason="private_graph_profile_validated", sha256="b" * 64,
+            parser_version="test", records=[{
+                "geometry": {"type": "LineString", "coordinates": points},
+                "distance_m": 1000, "duration_seconds": 120,
+            }],
+        )
+
+    monkeypatch.setattr("ner_lens.routing.retrieve_local_graphhopper", private_route)
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def request_id(request, call_next):
+        request.state.request_id = str(uuid4())
+        return await call_next(request)
+
+    app.include_router(routing_router(factory, lambda: selected[0], settings))
+    now = datetime.now(timezone.utc)
+    with TestClient(app) as client:
+        response = post(client, "/v1/routes/compare", {
+            "corridor_id": "north", "graph_version_id": "test-v1",
+            "origin": {"type": "Point", "coordinates": [92, 25]},
+            "destination": {"type": "Point", "coordinates": [92.1, 25.1]},
+            "vehicle_profile": "rigid_truck", "departure_at": now.isoformat(),
+            "deadline_at": (now + timedelta(hours=2)).isoformat(),
+        })
+    assert response.status_code == 200, response.text
+    assert calls == [([(92.0, 25.0), (92.1, 25.1)], "rigid_truck")]
+    body = response.json()
+    assert body["provider"] == "graphhopper_local"
+    assert body["vehicle_entitlement"] == "graphhopper_profile_applied_legality_unverified"
+    assert body["routes"][0]["travel_time_seconds"]["basis"] == (
+        "graphhopper_profile_free_flow_unvalidated"
+    )
+    assert body["recommended_route_id"] is None
+
+
 def test_mission_impacts_follow_selected_segments_and_decision_lifecycle(api):
     client, factory, selected, actors = api
     selected[0] = actors["dispatcher-north"]
