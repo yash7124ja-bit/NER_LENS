@@ -17,6 +17,8 @@ services:
       SESSION_COOKIE_SECURE: "false"
       GRAPHHOPPER_LOCAL_URL: http://graphhopper:8989
       GRAPHHOPPER_DATA_DATE: ${GRAPHHOPPER_DATA_DATE:?Set the retained extract data date from its provenance receipt}
+      CLAMD_HOST: clamav
+      CLAMD_PORT: "3310"
     ports: ["127.0.0.1:8000:8000"]
     depends_on:
       db:
@@ -45,6 +47,9 @@ services:
         target: /data/north-eastern-zone-260909.osm.pbf
         read_only: true
       - graph:/data/graph-cache
+  clamav:
+    image: clamav/clamav:stable
+    # clamd is reachable only on the Compose network, never from the browser.
 volumes:
   database:
   graph:
