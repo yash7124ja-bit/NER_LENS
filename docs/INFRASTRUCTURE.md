@@ -39,5 +39,7 @@ Create the backup output directory and a distinct empty target database beforeha
 
 A nightly scheduler must invoke the backup command with injected secrets and a unique date-based output path; no persistent host schedule was installed. Monitor exit status, retain off-host encrypted copies and periodically restore into an isolated database. A successful cryptographic unit test is not a database restore drill. The CLI restores one database's objects/data without ownership/privileges; PostgreSQL cluster roles, external files and grants need separately managed provisioning.
 
-Validation performed: Compose configuration parsed successfully with placeholder test credentials; four encryption/subprocess safety tests passed. Docker Desktop's Linux engine pipe was unavailable, so image builds, service startup, migrations and an actual PostgreSQL dump/restore drill remain unverified. These files do not claim live production readiness.
+On Windows, run `pwsh -NoProfile -File scripts/restore_drill.ps1` to repeat an isolated drill. It migrates a fresh source to the current Alembic head, inserts one jurisdiction and audit event, encrypts a backup, restores it into a second temporary PostGIS instance, checks the revision and record counts, and removes both containers and the temporary archive. The target database is created from `template0`: the PostGIS image's default database already contains a `tiger` schema and is not an empty restore target.
+
+Validation on 2026-09-26: the drill passed at `0017_media_object_storage` with one jurisdiction and one audit event after restore. This checks a synthetic, small database; it does not establish production backup retention, off-host storage, large-volume recovery time, or deployment rollback.
 
