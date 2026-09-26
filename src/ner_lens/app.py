@@ -202,11 +202,22 @@ def create_app(
         message = messages.get(exc.status_code, "Request is not supported")
         if exc.status_code == 503 and isinstance(exc.detail, str):
             message = service_messages.get(exc.detail, message)
+        route_reasons = {
+            "source_snapshot_expired", "graph_version_changed", "graph_or_mission_changed",
+            "authority_decision_changed", "decision_snapshot_changed", "candidate_decision_changed",
+            "selected_route_changed", "upstream_unavailable",
+        }
+        reason = exc.detail if isinstance(exc.detail, str) else ""
+        details = (
+            [{"field": "route", "reason": reason}]
+            if exc.status_code in (409, 502) and reason in route_reasons else None
+        )
         return error(
             request,
             exc.status_code,
             codes.get(exc.status_code, "invalid_request"),
             message,
+            details,
         )
 
     @app.exception_handler(RequestValidationError)
