@@ -6,6 +6,9 @@ from urllib.parse import urlsplit
 from uuid import NAMESPACE_URL, uuid5
 
 import httpx
+import weaviate
+from weaviate.classes.init import Auth
+from weaviate.exceptions import WeaviateBaseError
 
 from ner_lens.config import Settings
 
@@ -95,24 +98,22 @@ def index_stories(settings, stories, transport=None):
         return {"indexed": len(results), "search_mode": "weaviate_bm25"}
 
 
-def search_stories(settings, query, transport=None):
-    _, _, collection = connection(settings)
+def search_stories(settings, query):
+    url, key, collection = connection(settings)
     if not query.strip() or len(query) > 300:
         raise ValueError("invalid_search_query")
-    document = (
-        "{Get{"
-        + collection
-        + "(bm25:{query:"
-        + json.dumps(query)
-        + ',properties:["title^2","story","acceptance","evidence"]},limit:20){storyId}}}'
-    )
-    with client(settings, transport) as c:
-        response = c.post("/v1/graphql", json={"query": document})
-        response.raise_for_status()
-        body = response.json()
-        if body.get("errors"):
-            raise ValueError("weaviate_query_failed")
-        return [row["storyId"] for row in body.get("data", {}).get("Get", {}).get(collection, [])]
+    try:
+        with weaviate.connect_to_weaviate_cloud(
+            cluster_url=url, auth_credentials=Auth.api_key(key), skip_init_checks=True
+        ) as c:
+            results = c.collections.use(collection).query.bm25(
+                query=query,
+                query_properties=["title^2", "story", "acceptance", "evidence"],
+                limit=20,
+            )
+            return [row.properties["storyId"] for row in results.objects]
+    except (WeaviateBaseError, KeyError, AttributeError):
+        raise ValueError("weaviate_query_failed") from None
 
 
 if __name__ == "__main__":
