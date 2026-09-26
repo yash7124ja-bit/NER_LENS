@@ -186,11 +186,27 @@ def create_app(
             502: "The external provider could not complete the request. Retry shortly.",
             429: "Too many sign-in attempts. Please try again later.",
         }
+        service_messages = {
+            "media_scanner_or_storage_unavailable": (
+                "Evidence uploads require private storage and a trusted scanner"
+            ),
+            "media_scanner_unavailable": (
+                "The malware scanner is unavailable; evidence was not accepted"
+            ),
+            "private_media_storage_unavailable": (
+                "Private media storage is unavailable; evidence was not accepted"
+            ),
+            "story_search_unavailable": "User-story search is unavailable",
+            "story_index_unavailable": "User-story indexing is unavailable",
+        }
+        message = messages.get(exc.status_code, "Request is not supported")
+        if exc.status_code == 503 and isinstance(exc.detail, str):
+            message = service_messages.get(exc.detail, message)
         return error(
             request,
             exc.status_code,
             codes.get(exc.status_code, "invalid_request"),
-            messages.get(exc.status_code, "Request is not supported"),
+            message,
         )
 
     @app.exception_handler(RequestValidationError)

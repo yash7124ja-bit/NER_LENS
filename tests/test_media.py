@@ -4,7 +4,7 @@ import struct
 from uuid import uuid4
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from PIL import Image
 from sqlalchemy import func, select
@@ -151,6 +151,22 @@ def test_hosted_media_requires_scanner_and_private_store(operations_api):  # noq
         assert put(hosted, report_id, picture()).status_code == 503
     with factory() as session:
         assert session.scalar(select(func.count()).select_from(MediaObject)) == 0
+
+
+def test_missing_media_services_are_reported_without_database_blame(operations_api):  # noqa: F811
+    _, factory, _, _ = operations_api
+    app = create_app(Settings(database_url=str(factory.kw["bind"].url)), factory)
+
+    @app.get("/_media-unavailable")
+    def unavailable():
+        raise HTTPException(503, "media_scanner_or_storage_unavailable")
+
+    with TestClient(app) as client:
+        response = client.get("/_media-unavailable")
+    assert response.status_code == 503
+    assert response.json()["error"]["message"] == (
+        "Evidence uploads require private storage and a trusted scanner"
+    )
 
 
 def test_media_upload_uses_media_limit_not_json_limit(operations_api):  # noqa: F811
