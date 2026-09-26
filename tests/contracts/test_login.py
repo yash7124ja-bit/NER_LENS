@@ -10,7 +10,7 @@ from ner_lens.app import create_app
 from ner_lens.config import Settings
 from ner_lens.contracts import ErrorResponse
 from ner_lens.corridor.importer import bind_corridor
-from ner_lens.corridor.models import CorridorVersion
+from ner_lens.corridor.models import CorridorVersion, RoadSegment
 from ner_lens.db import build_session_factory
 from ner_lens.identity.accounts import provision_account
 from ner_lens.identity.models import Actor, Jurisdiction, RoleAssignment, SessionRecord
@@ -86,6 +86,57 @@ def test_cookie_login_restore_scope_and_logout(account_api):
     client.cookies.set(settings.session_cookie_name, cookie)
     assert client.get("/v1/auth/session").status_code == 401
     assert client.get("/v1/corridors").status_code == 401
+
+
+def test_mobile_cookie_session_scopes_empty_work_and_persists_report(account_api):
+    client, factory, _, account = account_api
+    email, password = f"{uuid4().hex}@example.test", secrets.token_urlsafe(24)
+    reporter = provision_account(
+        factory, email, password, "Field reporter", ("field_reporter",), (account["scope"],)
+    )
+    assert client.post(
+        "/v1/auth/login", json={"email": email, "password": "wrong"}
+    ).status_code == 401
+    assert client.get("/v1/auth/session").status_code == 401
+    login = client.post("/v1/auth/login", json={"email": email, "password": password})
+    assert login.status_code == 200, login.text
+    assert login.json()["user"]["actor_id"] == reporter.id
+    assert client.get("/v1/auth/session").status_code == 200
+    corridors = client.get("/v1/corridors")
+    assert corridors.status_code == 200, corridors.text
+    corridor_id = corridors.json()["corridors"][0]["corridor_version_id"]
+    assert client.get("/v1/missions", params={"corridor_id": corridor_id}).json() == {
+        "missions": []
+    }
+    assert client.get("/v1/alerts").json() == {"alerts": []}
+    with factory() as session:
+        segment = session.scalar(
+            select(RoadSegment).where(RoadSegment.corridor_version_id == corridor_id)
+        )
+        assert segment is not None
+        segment_id, coordinates = segment.id, segment.geometry["coordinates"][0]
+    client_report_id = str(uuid4())
+    report = client.post(
+        "/v1/field-reports",
+        headers={"Idempotency-Key": client_report_id, "X-Ner-Lens-Actor": reporter.id},
+        json={
+            "client_report_id": client_report_id,
+            "client_sequence": 1,
+            "segment_id": segment_id,
+            "observed_at": datetime.now(timezone.utc).isoformat(),
+            "geometry": {"type": "Point", "coordinates": coordinates},
+            "accuracy_m": 10,
+            "status_claim": "blocked",
+            "condition_code": "landslide",
+            "note": "Mobile offline replay",
+            "device_id": "test-device",
+        },
+    )
+    assert report.status_code == 201, report.text
+    assert report.json()["sync_state"] == "accepted_for_review"
+    own_reports = client.get("/v1/field-reports", params={"segment_id": segment_id})
+    assert own_reports.status_code == 200, own_reports.text
+    assert own_reports.json()["reports"][0]["client_report_id"] == client_report_id
 
 
 def test_admin_only_account_can_find_its_scope_without_road_status(account_api):
