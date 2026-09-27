@@ -548,6 +548,7 @@ def build_router(factory, current_actor, settings):
                     "retrieved_at": comparison.payload.get("retrieved_at"),
                     "graph_version_id": comparison.graph_version,
                     "vehicle_entitlement": comparison.payload.get("vehicle_entitlement"),
+                    "vehicle_profile": comparison.payload.get("vehicle_profile"),
                 },
                 "status": "expired_baseline"
                 if datetime.now(timezone.utc) >= utc_datetime(row.expires_at)
@@ -865,6 +866,11 @@ def build_router(factory, current_actor, settings):
                     ),
                     "reason": body.reason.strip(), "route_id": route["route_id"],
                     "created_at": now.isoformat(), "expires_at": expires.isoformat(),
+                    "vehicle_profile": result.get("vehicle_profile"),
+                    "vehicle_entitlement": result.get("vehicle_entitlement"),
+                    "retrieved_at": result.get("retrieved_at"),
+                    "uncertainty_score": route.get("uncertainty_score"),
+                    "linked_segment_count": len(route.get("segment_ids", [])),
                 },
             ))
             session.add(

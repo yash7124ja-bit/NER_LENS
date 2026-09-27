@@ -199,6 +199,7 @@ def test_route_baseline_selection_rejects_stale_and_changed_decisions(api, monke
     assert saved["route"] == result["routes"][0]
     assert saved["source"]["source_snapshot_id"] == result["source_snapshot_id"]
     assert saved["source"]["vehicle_entitlement"] == "unverified_car_baseline"
+    assert saved["source"]["vehicle_profile"] == "rigid_truck"
     with factory.begin() as session:
         session.get(Mission, mid).driver_actor_id = "driver-north"
     selected[0] = actors["driver-north"]
@@ -600,6 +601,9 @@ def test_route_change_approval_is_scoped_idempotent_and_does_not_switch_driver_r
     alert = client.get(f"/v1/missions/{mid}/route-alert").json()["alert"]
     assert alert["alert_id"] != first_alert["alert_id"]
     assert alert["delivery_state"] == "queued_in_app"
+    assert alert["linked_segment_count"] == 1
+    assert alert["retrieved_at"] == now.isoformat()
+    assert alert["vehicle_profile"] is None and alert["uncertainty_score"] is None
     selected[0] = actors["driver-south"]
     assert client.post(f"/v1/alerts/{alert['alert_id']}/acknowledge", json={"decision": "accept"},
                        headers={"Idempotency-Key": "wrong-driver"}).status_code == 403
