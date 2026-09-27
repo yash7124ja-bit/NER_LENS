@@ -20,6 +20,7 @@ from ner_lens.identity.service import AuthorizationService, ResourceScope
 from ner_lens.local_routing import retrieve_local_graphhopper
 from ner_lens.operations import (
     EvidenceReview,
+    FieldClarification,
     FieldReport,
     Mission,
     Point,
@@ -1036,7 +1037,9 @@ def build_router(factory, current_actor, settings):
                     continue
                 add("status_decision", decision.id, decision.created_at, decision.actor_id,
                     decision.payload.get("status", "unknown"), decision_id=decision.id,
-                    segment_id=decision.segment_id)
+                    segment_id=decision.segment_id,
+                    supersedes_decision_id=decision.payload.get("supersedes_decision_id"),
+                    valid_until=utc_datetime(decision.valid_until).isoformat())
                 for evidence_id in decision.payload.get("evidence_ids", []):
                     report = session.get(FieldReport, evidence_id)
                     if report is None or report.segment_id != decision.segment_id:
@@ -1051,7 +1054,15 @@ def build_router(factory, current_actor, settings):
                         add("review", review.id, review.created_at, review.actor_id,
                             review.payload.get("action", "reviewed"),
                             report_id=report.id, decision_id=decision.id,
-                            review_id=review.id)
+                            review_id=review.id,
+                            merge_into_evidence_id=review.payload.get("merge_into_evidence_id"))
+                        for clarification in session.scalars(select(FieldClarification).where(
+                            FieldClarification.review_id == review.id
+                        )).all():
+                            add("clarification", clarification.id, clarification.created_at,
+                                clarification.actor_id, "clarification_answered",
+                                report_id=report.id, review_id=review.id,
+                                clarification_id=clarification.id)
             events.sort(key=lambda item: (item["at"], item["kind"], item["event_id"]))
             return {"mission_id": mission_id, "data_mode": "replay", "events": events}
 

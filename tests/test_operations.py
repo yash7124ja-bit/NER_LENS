@@ -647,7 +647,7 @@ def test_route_change_approval_is_scoped_idempotent_and_does_not_switch_driver_r
     assert other_id not in {event["event_id"] for event in events}
     assert next(event for event in events if event["kind"] == "review")["source_ids"] == {
         "mission_id": mid, "report_id": report_id, "decision_id": decision_id,
-        "review_id": review_id,
+        "review_id": review_id, "merge_into_evidence_id": None,
     }
     assert [event["at"] for event in events] == sorted(event["at"] for event in events)
     selected[0] = actors["dispatcher-south"]
@@ -811,6 +811,115 @@ def test_report_clarification_history_is_scoped_and_does_not_publish_status(api)
     with factory() as session:
         assert session.scalar(select(func.count()).select_from(FieldReport)) == 2
         assert effective_status(session, "north")["status"] == "unknown"
+
+
+def test_mission_timeline_reconstructs_clarification_and_decision_supersession(api, monkeypatch):
+    client, factory, selected, actors = api
+    selected[0] = actors["dispatcher-north"]
+    now = datetime.now(timezone.utc)
+    mission = post(client, "/v1/missions", {
+        "cargo_class": "medicine", "priority": "high",
+        "origin": {"type": "Point", "coordinates": [92, 25]},
+        "destination": {"type": "Point", "coordinates": [92.1, 25.1]},
+        "delivery_window": {"start": now.isoformat(),
+                            "end": (now + timedelta(hours=2)).isoformat()},
+        "vehicle_profile": "rigid_truck", "corridor_id": "north",
+        "gps_consent": {"basis": "mission_assignment", "recorded_at": now.isoformat()},
+    })
+    assert mission.status_code == 201, mission.text
+    mid = mission.json()["mission_id"]
+    monkeypatch.setattr("ner_lens.routing.retrieve", lambda *a, **k: SourceSnapshot(
+        id=str(uuid4()), source="mappls", url="https://route.mappls.com/route/direction",
+        retrieved_at=datetime.now(timezone.utc), status="available",
+        reason="retrieval_validated", sha256="a" * 64, parser_version="test",
+        records=[{"geometry": {"type": "LineString", "coordinates": [[92, 25], [92.1, 25.1]]},
+                  "distance_m": 1000, "duration_seconds": 120}],
+    ))
+    compare = post(client, "/v1/routes/compare", {
+        "corridor_id": "north", "graph_version_id": "test-v1", "mission_id": mid,
+        "origin": mission.json()["origin"], "destination": mission.json()["destination"],
+        "vehicle_profile": "rigid_truck", "departure_at": now.isoformat(),
+        "deadline_at": mission.json()["delivery_window"]["end"],
+    })
+    assert compare.status_code == 200, compare.text
+    route_id = compare.json()["routes"][0]["route_id"]
+    assert post(client, f"/v1/missions/{mid}/route-selection", {
+        "comparison_id": compare.json()["comparison_id"], "route_id": route_id,
+    }).status_code == 201
+
+    selected[0] = actors["field_reporter-north"]
+    report = post(client, "/v1/field-reports", report_body())
+    assert report.status_code == 201, report.text
+    report_id = report.json()["field_report_id"]
+    selected[0] = actors["reviewer-north"]
+    review = post(client, f"/v1/reviews/{report_id}", {
+        "action": "needs_clarification", "note": "Please confirm the blockage extent",
+    })
+    assert review.status_code == 201, review.text
+    selected[0] = actors["field_reporter-north"]
+    reply = post(client, f"/v1/field-reports/{report_id}/clarifications", {
+        "note": "Full carriageway blocked by fallen trees",
+    })
+    assert reply.status_code == 201, reply.text
+    selected[0] = actors["reviewer-north"]
+    assert post(client, f"/v1/reviews/{report_id}", {
+        "action": "accept", "note": "Clarification resolved",
+    }).status_code == 201
+
+    selected[0] = actors["district_officer-north"]
+    first_decision = post(client, "/v1/status-decisions", {
+        "segment_id": "north", "status": "closed", "vehicle_scope": ["all"], "direction": "both",
+        "reason_code": "landslide", "evidence_ids": [report_id],
+        "effective_at": now.isoformat(), "valid_until": (now + timedelta(hours=1)).isoformat(),
+        "note": "Reviewed landslide evidence",
+    })
+    assert first_decision.status_code == 201, first_decision.text
+    first_decision_id = first_decision.json()["decision_id"]
+
+    selected[0] = actors["dispatcher-north"]
+    impacts = client.get("/v1/corridors/north/mission-impacts")
+    assert impacts.status_code == 200, impacts.text
+    assert any(item["decision_id"] == first_decision_id and item["state"] == "active"
+               for item in impacts.json()["assessments"])
+
+    selected[0] = actors["district_officer-north"]
+    second_decision = post(client, "/v1/status-decisions", {
+        "segment_id": "north", "status": "closed", "vehicle_scope": ["all"], "direction": "both",
+        "reason_code": "authority_order", "order_reference": "ORD-42", "evidence_ids": [],
+        "effective_at": now.isoformat(), "valid_until": (now + timedelta(hours=2)).isoformat(),
+        "note": "Authority order supersedes the reviewed evidence closure",
+    })
+    assert second_decision.status_code == 201, second_decision.text
+    second_decision_id = second_decision.json()["decision_id"]
+    assert second_decision.json()["supersedes_decision_id"] == first_decision_id
+
+    selected[0] = actors["dispatcher-north"]
+    assert client.get("/v1/corridors/north/mission-impacts").status_code == 200
+    timeline = client.get(f"/v1/missions/{mid}/timeline")
+    assert timeline.status_code == 200, timeline.text
+    events = timeline.json()["events"]
+    kinds = {event["kind"] for event in events}
+    assert kinds >= {"status_decision", "field_report", "review", "clarification", "impact"}
+
+    clarification_event = next(event for event in events if event["kind"] == "clarification")
+    assert clarification_event["actor_id"] == "field_reporter-north"
+    assert clarification_event["source_ids"]["report_id"] == report_id
+
+    decision_events = {event["source_ids"]["decision_id"]: event
+                       for event in events if event["kind"] == "status_decision"}
+    assert decision_events[first_decision_id]["source_ids"]["supersedes_decision_id"] is None
+    assert decision_events[second_decision_id]["source_ids"]["supersedes_decision_id"] == (
+        first_decision_id
+    )
+    assert decision_events[second_decision_id]["source_ids"]["valid_until"] == (
+        (now + timedelta(hours=2)).isoformat()
+    )
+
+    # Unauthorized actors cannot reconstruct this mission's audit trail.
+    selected[0] = actors["dispatcher-south"]
+    assert client.get(f"/v1/missions/{mid}/timeline").status_code == 403
+    selected[0] = actors["reviewer-north"]
+    assert client.get(f"/v1/missions/{mid}/timeline").status_code == 403
 
 
 def test_authority_order_reference_and_decision_history(api):
