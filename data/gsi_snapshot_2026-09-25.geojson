@@ -1,0 +1,8 @@
+{
+  "snapshotDate": "2026-09-25",
+  "error": {
+    "code": 499,
+    "message": "Token Required",
+    "details": []
+  }
+}

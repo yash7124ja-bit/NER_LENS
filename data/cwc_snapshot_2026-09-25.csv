@@ -1,0 +1,21 @@
+SlNo,Station,Agency,State LGD Code,State,District LGD Code,District,Tehsil,Block,Village,River,Basin,Tributary,Subtributary,SubSubtributary,Local River,Latitude,Longitude,Is_DischargeDataAvailable,RL_of_zeroGauge,MeanSeaLevel,Data Acquisition Time,River Water Level Telemetry Hourly (meter)
+1,Adityapur,CWC,20,Jharkhand,343,PASHCHIMI SINGHBHUM,ADITYAPUR(GAMHARIA),-,-,Subarnarekha,Subernarekha,Kharkai,-,-,Karkari,22.79138889,86.17361111,Yes,123.0000,123.00,14-12-1970 21:47,149.29
+2,Balimundali,CWC,21,Odisha,365,MAYURBHANJ,BARIPADA,-,-,Burhabalang,Subernarekha,-,-,-,Burhabalang,21.73388889,86.63333333,No,37.1850,37.00,03-01-1970 14:00,36.43
+3,Balimundali,CWC,21,Odisha,365,MAYURBHANJ,BARIPADA,-,-,Burhabalang,Subernarekha,-,-,-,Burhabalang,21.73388889,86.63333333,No,37.1850,37.00,11-02-1970 03:00,50.43
+4,Bara Ghagara,CWC,20,Jharkhand,339,RANCHI,NAMKUM,-,-,Subarnarekha,Subernarekha,Kharkai,-,-,Vaitarna,23.33055556,85.35888889,No,0,0,15-10-1970 10:00,643.65
+5,Baripada,CWC,21,Odisha,365,MAYURBHANJ,BARIPADA,-,-,Burhabalang,Subernarekha,-,-,-,Burhabalang,21.93111111,86.71861111,No,23.3000,23.30,30-07-1970 03:30,20.65
+6,Baripada,CWC,21,Odisha,365,MAYURBHANJ,BARIPADA,-,-,Burhabalang,Subernarekha,-,-,-,Burhabalang,21.93111111,86.71861111,No,23.3000,23.30,13-12-1970 20:30,20.65
+7,Chandanpur,CWC,21,Odisha,365,MAYURBHANJ,BARIPADA,-,-,Burhabalang,Subernarekha,-,-,-,Burhabalang,22.16611111,86.57138889,No,81.2750,81.28,03-02-1970 16:30,81.92
+8,Chandanpur,CWC,21,Odisha,365,MAYURBHANJ,BARIPADA,-,-,Burhabalang,Subernarekha,-,-,-,Burhabalang,22.16611111,86.57138889,No,81.2750,81.28,12-12-1970 00:30,81.92
+9,Chandil Dam,CWC,20,Jharkhand,340,Sahebganj,Musabani,-,-,Subarnarekha,Subernarekha,-,-,-,Subarnarekha,22.97000000,86.05000000,No,0.0000,182.00,04-01-1970 07:30,176.2
+10,Chandil Dam,CWC,20,Jharkhand,340,Sahebganj,Musabani,-,-,Subarnarekha,Subernarekha,-,-,-,Subarnarekha,22.97000000,86.05000000,No,0.0000,182.00,17-01-1970 05:00,176.2
+11,Chandil Dam,CWC,20,Jharkhand,340,Sahebganj,Musabani,-,-,Subarnarekha,Subernarekha,-,-,-,Subarnarekha,22.97000000,86.05000000,No,0.0000,182.00,07-12-1970 18:00,176.2
+12,Fekoghat,CWC,19,West Bengal,317,MEDINIPUR,MIDNAPORE,-,-,Subarnarekha,Subernarekha,Dulung,Dulang,-,Dulang,22.30861111,86.91638889,Yes,40.0000,41.48,13-09-1974 15:30,42.18
+13,Getalsud Reservoir,CWC,20,Jharkhand,339,RANCHI,ANGARA,-,-,Subarnarekha,Subernarekha,-,-,-,Subarnarekha,23.45000000,85.55000000,No,0.0000,0,01-01-1970 03:30,586.47
+14,Kanke Rd. Bridge,CWC,20,Jharkhand,339,RANCHI,KANKE,-,-,Subarnarekha,Subernarekha,Jumar,-,-,Jumar,23.45000000,85.31388889,No,0,0,17-07-1975 05:00,609.275
+15,Muri,CWC,20,Jharkhand,339,RANCHI,SILLI,-,-,Subarnarekha,Subernarekha,-,-,-,Subarnarekha,23.37055556,85.86916667,Yes,231.0000,231.00,14-01-1970 16:00,233.13
+16,Rajghat_1,CWC,21,Odisha,346,Baleshwar,BASTA,-,-,Subarnarekha,Subernarekha,-,-,-,Subarnarekha,21.76777778,87.16416667,No,0.0000,5.79,26-04-1970 14:30,4.62
+17,Rajghat_1,CWC,21,Odisha,346,Baleshwar,BASTA,-,-,Subarnarekha,Subernarekha,-,-,-,Subarnarekha,21.76777778,87.16416667,No,0.0000,5.79,12-05-1970 08:30,3.81
+18,Rd.Bridge D/S of Chandil Dam,CWC,20,Jharkhand,327,PURBI SINGHBHUM,GHATSHILA,-,-,Subarnarekha,Subernarekha,Dulang,-,-,Dulang,22.97083333,86.02083333,No,0,0,01-03-1971 14:00,143.91
+19,Saraikela Rd. Bridge,CWC,20,Jharkhand,343,PASHCHIMI SINGHBHUM,KHARSAWAN,-,-,Subarnarekha,Subernarekha,Kharkhai,-,-,Kharkhai,22.69361111,85.97861111,No,0,0,31-12-1969 06:00,189.195
+20,Saraikela Rd. Bridge,CWC,20,Jharkhand,343,PASHCHIMI SINGHBHUM,KHARSAWAN,-,-,Subarnarekha,Subernarekha,Kharkhai,-,-,Kharkhai,22.69361111,85.97861111,No,0,0,16-07-1970 08:00,200.195

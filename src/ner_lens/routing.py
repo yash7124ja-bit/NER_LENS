@@ -31,6 +31,43 @@ from ner_lens.sources import SourceSnapshot, retrieve
 from ner_lens.spatial import assert_corridor_point, projected_corridor
 
 
+
+def _compute_risk_exposure(route, statuses, impact):
+    """Compute the risk_exposure dict using the Laya model."""
+    segment_ids = route.get("segment_ids", [])
+    if not segment_ids or all(statuses.get(seg_id, {}).get("status") == "unknown" for seg_id in segment_ids):
+        return {
+            "probability_weighted_minutes": None,
+            "state": "insufficient_evidence",
+        }
+    else:
+        # Prepare impact data for the Laya model
+        impact_data = {}
+        if impact is not None:
+            impact_data = {
+                "segment_id": impact.payload.get("segment_id"),
+                "status": impact.payload.get("status"),
+                "decision_evidence_ids": impact.payload.get("decision_evidence_ids", []),
+                "assessment_basis": impact.payload.get("assessment_basis"),
+            }
+        # Call the Laya model for risk assessment
+        from ner_lens.risk.laya import assess_risk
+        laya_result = assess_risk(impact_data, route, statuses)
+        return {
+            "probability_weighted_minutes": laya_result.get("probability_weighted_minutes"),
+            "state": laya_result.get("state"),
+            "uncertainty_score": None,
+            "blocked_segment_ids": [],
+            "key_evidence_ids": [],
+            "score_components": {
+                "travel_minutes": route["duration_seconds"] / 60,
+                "risk": laya_result.get("risk"),
+                "uncertainty": None,
+                "staleness": None,
+                "deadline_penalty": None,
+            },
+            "reason": laya_result.get("explanation", "Baseline only: vehicle legality, policy weights and hazard coverage are unverified."),
+        }
 class RouteComparisonRecord(Base):
     __tablename__ = "route_comparison"
     __table_args__ = (UniqueConstraint("actor_id", "idempotency_key", name="uq_route_actor_key"),)

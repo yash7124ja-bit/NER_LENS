@@ -433,7 +433,7 @@ def create_app(
     )
     def state(
         corridor_id: UUID,
-        query: Annotated[StateQuery, Query()],
+        query: StateQuery = Query(),
         request: Request,
         actor: Annotated[AuthContext, Depends(current_actor)],
     ):
